@@ -31,6 +31,7 @@ function environment() {
   DB.sqlite.exec(readFileSync(new URL('../migrations/0001_schema.sql', import.meta.url), 'utf8'));
   DB.sqlite.exec(readFileSync(new URL('../migrations/0002_catalog.sql', import.meta.url), 'utf8'));
   DB.sqlite.exec(readFileSync(new URL('../migrations/0003_connect.sql', import.meta.url), 'utf8'));
+  DB.sqlite.exec(readFileSync(new URL('../migrations/0004_order_payment.sql', import.meta.url), 'utf8'));
   return { DB, ADMIN_EMAIL: 'test@example.invalid', ADMIN_PASSWORD_HASH: passwordHash, ALLOWED_ORIGINS: 'https://store.example', STOREFRONT_URL: 'https://store.example/nornail/' };
 }
 async function call(env, path, { method = 'GET', input, token, origin = 'https://store.example', headers = {}, raw } = {}) {
@@ -50,7 +51,7 @@ async function prepareCheckout(env, priceOre = 12345) {
   assert.equal((await call(env, '/api/admin/products/w1', { method: 'PUT', token, input: product })).status, 200);
   env.STRIPE_SECRET_KEY = 'sk_test_fixture';
   env.STRIPE_WEBHOOK_SECRET = 'whsec_fixture';
-  const config = { ...globalThis.nornailsCommerce.defaults, enabled: true, termsConfirmed: true, termsUrl: 'https://store.example/terms' };
+  const config = { ...globalThis.nornailsCommerce.defaults, enabled: true, shippingOre: 9900, termsConfirmed: true, termsUrl: 'https://store.example/terms' };
   assert.equal((await call(env, '/api/admin/settings', { method: 'PUT', token, input: config })).status, 200);
   return token;
 }

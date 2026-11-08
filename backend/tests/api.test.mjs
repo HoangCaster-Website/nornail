@@ -78,7 +78,7 @@ test('checkout cannot be enabled before server credentials and confirmed busines
   const token = await signIn(env);
   const input = { ...globalThis.nornailsCommerce.defaults, enabled: true };
   assert.equal((await call(env, '/api/admin/settings', { method: 'PUT', token, input })).status, 400);
-  assert.equal((await call(env, '/api/admin/settings', { method: 'PUT', token, input: { ...input, termsUrl: 'https://store.example/terms', termsConfirmed: true } })).status, 409);
+  assert.equal((await call(env, '/api/admin/settings', { method: 'PUT', token, input: { ...input, shippingOre: 9900, termsUrl: 'https://store.example/terms', termsConfirmed: true } })).status, 409);
 });
 
 test('Stripe checkout uses server prices, safe return URLs and idempotency, ignoring browser amounts', async () => {
@@ -91,7 +91,7 @@ test('Stripe checkout uses server prices, safe return URLs and idempotency, igno
     return Response.json(url.endsWith('/checkout/sessions') ? { id: sessionId, url: 'https://checkout.stripe.com/c/pay/fixture' } : { id: sessionId, status: 'open', url: 'https://checkout.stripe.com/c/pay/fixture' });
   };
   try {
-    const input = { requestId: crypto.randomUUID(), language: 'en', items: [{ id: 'w1', quantity: 2, priceOre: 1 }], priceOre: 1, success_url: 'https://attacker.invalid' };
+    const input = { requestId: crypto.randomUUID(), language: 'en', fulfillment: 'pickup', items: [{ id: 'w1', quantity: 2, priceOre: 1 }], priceOre: 1, success_url: 'https://attacker.invalid' };
     const result = await call(env, '/api/checkout', { method: 'POST', input });
     assert.equal(result.status, 200);
     const params = calls[0].options.body;
@@ -116,7 +116,7 @@ test('signed webhooks confirm matching orders atomically; forged/replayed/mismat
   const originalFetch = globalThis.fetch;
   globalThis.fetch = async () => Response.json({ id: sessionId, url: 'https://checkout.stripe.com/c/pay/fixture' });
   const requestId = crypto.randomUUID();
-  try { assert.equal((await call(env, '/api/checkout', { method: 'POST', input: { requestId, items: [{ id: 'w1', quantity: 1 }] } })).status, 200); }
+  try { assert.equal((await call(env, '/api/checkout', { method: 'POST', input: { requestId, fulfillment: 'pickup', items: [{ id: 'w1', quantity: 1 }] } })).status, 200); }
   finally { globalThis.fetch = originalFetch; }
   const event = { id: 'evt_fixture', livemode: false, type: 'checkout.session.completed', data: { object: { id: sessionId, metadata: { order_id: requestId }, payment_status: 'paid', amount_total: 9900, currency: 'nok', customer_details: { email: 'buyer@example.invalid' } } } };
   assert.equal((await sendEvent(env, event, 't=1,v1=invalid')).status, 400);

@@ -1,0 +1,6 @@
+ALTER TABLE orders ADD COLUMN fulfillment TEXT NOT NULL DEFAULT 'pickup';
+ALTER TABLE orders ADD COLUMN shipping_ore INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE orders ADD COLUMN subtotal INTEGER;
+ALTER TABLE orders ADD COLUMN checkout_url TEXT;
+ALTER TABLE orders ADD COLUMN expires_at INTEGER;
+ALTER TABLE orders ADD COLUMN delivery_details TEXT;

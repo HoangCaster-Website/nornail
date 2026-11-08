@@ -167,7 +167,7 @@ test('Connect checkout charges the authorized merchant; cross-account webhooks c
     assert.equal(options.headers['Stripe-Account'], account.id);
     return Response.json({ id: sessionId, url: 'https://checkout.stripe.com/c/pay/connectfixture' });
   }, async () => {
-    assert.equal((await call(env, '/api/checkout', { method: 'POST', input: { requestId, items: [{ id: 'w1', quantity: 1 }] } })).status, 200);
+    assert.equal((await call(env, '/api/checkout', { method: 'POST', input: { requestId, fulfillment: 'pickup', items: [{ id: 'w1', quantity: 1 }] } })).status, 200);
   });
   const event = { id: 'evt_connectedfixture', livemode: false, account: 'acct_wrong', type: 'checkout.session.completed', data: { object: { id: sessionId, metadata: { order_id: requestId }, payment_status: 'paid', currency: 'nok', amount_total: 9900 } } };
   async function send(value, secret) {

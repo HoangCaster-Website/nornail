@@ -3,6 +3,12 @@
 (() => {
   const vi = {
     'Nornails — Store admin': 'Nornails — Quản trị cửa hàng', 'Nornails — Stripe setup': 'Nornails — Thiết lập Stripe',
+    'Delivery methods offered to customers': 'Cách nhận hàng dành cho người mua',
+    'Customers choose how to receive their order at checkout. You only set the available options and shipping fee.': 'Người mua tự chọn cách nhận hàng khi đặt đơn. Bạn chỉ cấu hình các lựa chọn được hỗ trợ và phí giao hàng.',
+    'Allow pickup in Sandvika': 'Cho phép nhận hàng tại Sandvika', 'Allow delivery within Norway': 'Cho phép giao hàng trong Na Uy',
+    'Choose the supported delivery methods.': 'Chọn các cách nhận hàng được hỗ trợ.', 'Enable at least one delivery method.': 'Bật ít nhất một cách nhận hàng.',
+    'Set the shipping fee before offering delivery.': 'Nhập phí giao hàng trước khi bật lựa chọn giao hàng.', 'Invalid shipping fee.': 'Phí giao hàng không hợp lệ.',
+    'Delivery within Norway': 'Giao hàng trong Na Uy', 'Unpaid': 'Chưa thanh toán', 'Processing payment': 'Đang xử lý thanh toán',
     'Admin language': 'Ngôn ngữ quản trị', 'Language': 'Ngôn ngữ', 'Setup link': 'Link thiết lập', 'Complete your details': 'Hoàn tất thông tin', 'See the result': 'Xem kết quả',
     'Replace the existing setup link?': 'Thay link thiết lập hiện tại?', 'The previous invitation will stop working.': 'Lời mời trước đó sẽ hết hiệu lực.', 'Create new link': 'Tạo link mới',
     'Skip to content': 'Đến nội dung chính', 'STORE ADMIN': 'QUẢN TRỊ CỬA HÀNG', 'YOUR WORKSPACE': 'KHÔNG GIAN QUẢN TRỊ',

@@ -48,7 +48,25 @@ async function readLimited(request, limit) {
 const decodeProduct = row => ({ ...JSON.parse(row.data), version: row.version });
 async function settings(env) {
   const row = await env.DB.prepare('SELECT data FROM settings WHERE id = 1').first();
-  return row ? JSON.parse(row.data) : { ...rules.defaults };
+  return row ? rules.settings(JSON.parse(row.data)) : { ...rules.defaults };
+}
+function invoiceUrl(env, sessionId, language) {
+  const url = new URL('payment.html', env.STOREFRONT_URL.endsWith('/') ? env.STOREFRONT_URL : env.STOREFRONT_URL + '/');
+  url.searchParams.set('session_id', sessionId);
+  url.searchParams.set('lang', language === 'en' ? 'en' : 'nb');
+  return url.href;
+}
+function effectiveOrderStatus(order) {
+  return order.status === 'pending' && order.expires_at && order.expires_at <= Math.floor(Date.now() / 1000) ? 'expired' : order.status;
+}
+function safeCheckoutUrl(value) {
+  try { const url = new URL(value); return url.protocol === 'https:' && url.hostname === 'checkout.stripe.com' && !url.username && !url.password ? url.href : null; } catch { return null; }
+}
+function deliveryDetails(session) {
+  const details = session.collected_information?.shipping_details || session.shipping_details;
+  if (!details?.address) return null;
+  const clean = value => typeof value === 'string' ? value.slice(0, 300) : '';
+  return JSON.stringify({ name: clean(details.name), address: Object.fromEntries(['line1','line2','city','postal_code','state','country'].map(key => [key, clean(details.address[key])])) });
 }
 function stripeMode(env) { return /^sk_test_/.test(env.STRIPE_SECRET_KEY || '') ? 'test' : /^sk_live_/.test(env.STRIPE_SECRET_KEY || '') ? 'live' : 'unconfigured'; }
 async function ready(env) {
@@ -111,6 +129,8 @@ async function checkout(request, env) {
   const accountHeaders = accountId ? { 'Stripe-Account': accountId } : {};
   await rateLimit(request, env, 'checkout', 20);
   const input = await body(request);
+  if (!['pickup', 'shipping'].includes(input.fulfillment)) fail(400, 'Choose how you want to receive your order.');
+  if ((input.fulfillment === 'pickup' && !config.pickupEnabled) || (input.fulfillment === 'shipping' && (!config.shippingEnabled || config.shippingOre === null))) fail(400, 'This delivery method is not available.');
   if (!/^[a-f0-9-]{36}$/.test(input.requestId || '') || !Array.isArray(input.items) || !input.items.length || input.items.length > 20) fail(400, 'Invalid checkout request.');
   const quantities = new Map();
   for (const item of input.items) {
@@ -124,29 +144,33 @@ async function checkout(request, env) {
     if (!row) fail(400, 'A product is no longer available.');
     const product = decodeProduct(row);
     if (!product.active || !product.priceOre) fail(400, 'A product is not available for online purchase.');
-    items.push({ id, name: product.brand + ' ' + (input.language === 'en' ? product.translations?.en?.name || product.name : product.name), quantity, priceOre: product.priceOre });
+    items.push({ id, name: product.brand + ' ' + (input.language === 'en' ? product.translations?.en?.name || product.name : product.name), unit: input.language === 'en' ? product.translations?.en?.unit || product.unit : product.unit, quantity, priceOre: product.priceOre });
   }
   const subtotal = items.reduce((sum, item) => sum + item.quantity * item.priceOre, 0);
-  const shipping = config.fulfillment === 'shipping' ? config.shippingOre : 0;
+  const shipping = input.fulfillment === 'shipping' ? config.shippingOre : 0;
   if (subtotal + shipping > 99999999) fail(400, 'Order total is too large. Please contact Nornails.');
-  const fingerprint = await hash(JSON.stringify({ items, config, accountId, language: input.language === 'en' ? 'en' : 'nb' }));
+  const fingerprint = await hash(JSON.stringify({ items, config, accountId, fulfillment: input.fulfillment, language: input.language === 'en' ? 'en' : 'nb' }));
   const id = input.requestId;
   const mode = stripeMode(env);
-  await env.DB.prepare('INSERT OR IGNORE INTO orders (id, mode, status, amount, currency, items, fingerprint, created_at, stripe_account) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)').bind(id, mode, 'pending', subtotal + shipping, 'nok', JSON.stringify(items), fingerprint, new Date().toISOString(), accountId).run();
+  await env.DB.prepare('INSERT OR IGNORE INTO orders (id, mode, status, amount, currency, items, fingerprint, created_at, stripe_account, fulfillment, shipping_ore, subtotal) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').bind(id, mode, 'pending', subtotal + shipping, 'nok', JSON.stringify(items), fingerprint, new Date().toISOString(), accountId, input.fulfillment, shipping, subtotal).run();
   const order = await env.DB.prepare('SELECT fingerprint, mode, status, session_id FROM orders WHERE id = ?').bind(id).first();
   if (order.fingerprint !== fingerprint || order.mode !== mode) fail(409, 'The basket has changed. Start a new checkout.');
   if (order.status !== 'pending') fail(409, 'This checkout has already been completed or expired.');
   if (order.session_id) {
     const existing = await stripe(env, `checkout/sessions/${encodeURIComponent(order.session_id)}`, { headers: accountHeaders });
-    if (existing.status !== 'open') fail(409, 'This checkout is no longer open. Start a new checkout.');
-    return json({ url: existing.url });
+    if (existing.status !== 'open') {
+      await env.DB.prepare('UPDATE orders SET status = ?, checkout_url = NULL WHERE id = ? AND status = ?').bind(existing.status === 'expired' ? 'expired' : 'processing', id, 'pending').run();
+    }
+    return json({ url: existing.status === 'open' ? safeCheckoutUrl(existing.url) : null, sessionId: order.session_id, invoiceUrl: invoiceUrl(env, order.session_id, input.language) });
   }
   const success = new URL('payment.html', env.STOREFRONT_URL.endsWith('/') ? env.STOREFRONT_URL : env.STOREFRONT_URL + '/');
   success.searchParams.set('session_id', '{CHECKOUT_SESSION_ID}');
   success.searchParams.set('lang', input.language === 'en' ? 'en' : 'nb');
   const cancel = new URL(success);
-  cancel.search = `?cancelled=1&lang=${input.language === 'en' ? 'en' : 'nb'}`;
-  const params = new URLSearchParams({ mode: 'payment', success_url: success.href.replace('%7BCHECKOUT_SESSION_ID%7D', '{CHECKOUT_SESSION_ID}'), cancel_url: cancel.href, locale: input.language === 'en' ? 'en' : 'nb', client_reference_id: id, 'metadata[order_id]': id, 'consent_collection[terms_of_service]': 'required', 'custom_text[terms_of_service_acceptance][message]': `I agree to the [terms of sale](${config.termsUrl}).` });
+  // The order reference exists before Stripe creates its session. Use it for
+  // cancellation instead of assuming a success-URL placeholder works here.
+  cancel.search = new URLSearchParams({ order_id: id, cancelled: '1', lang: input.language === 'en' ? 'en' : 'nb' }).toString();
+  const params = new URLSearchParams({ mode: 'payment', success_url: success.href.replace('%7BCHECKOUT_SESSION_ID%7D', '{CHECKOUT_SESSION_ID}'), cancel_url: cancel.href, locale: input.language === 'en' ? 'en' : 'nb', client_reference_id: id, 'metadata[order_id]': id, 'metadata[fulfillment]': input.fulfillment, 'consent_collection[terms_of_service]': 'required', 'custom_text[terms_of_service_acceptance][message]': `I agree to the [terms of sale](${config.termsUrl}).` });
   items.forEach((item, index) => {
     params.set(`line_items[${index}][price_data][currency]`, 'nok');
     params.set(`line_items[${index}][price_data][unit_amount]`, String(item.priceOre));
@@ -156,7 +180,7 @@ async function checkout(request, env) {
   });
   if (config.taxMode === 'automatic') params.set('automatic_tax[enabled]', 'true');
   params.set('billing_address_collection', 'required');
-  if (config.fulfillment === 'shipping') {
+  if (input.fulfillment === 'shipping') {
     params.set('shipping_address_collection[allowed_countries][0]', 'NO');
     params.set('shipping_options[0][shipping_rate_data][type]', 'fixed_amount');
     params.set('shipping_options[0][shipping_rate_data][display_name]', 'Shipping in Norway');
@@ -165,8 +189,11 @@ async function checkout(request, env) {
     params.set('shipping_options[0][shipping_rate_data][tax_behavior]', 'inclusive');
   } else params.set('custom_text[submit][message]', 'Pickup by arrangement: Rådmann Halmrasts vei 7, Sandvika.');
   const session = await stripe(env, 'checkout/sessions', { method: 'POST', headers: { ...accountHeaders, 'Content-Type': 'application/x-www-form-urlencoded', 'Idempotency-Key': id }, body: params });
-  await env.DB.prepare('UPDATE orders SET session_id = ? WHERE id = ? AND session_id IS NULL').bind(session.id, id).run();
-  return json({ url: session.url });
+  const paymentUrl = safeCheckoutUrl(session.url);
+  if (!paymentUrl || typeof session.id !== 'string') fail(502, 'Stripe did not return a valid payment session.');
+  const expires = Number.isInteger(session.expires_at) ? session.expires_at : null;
+  await env.DB.prepare('UPDATE orders SET session_id = COALESCE(session_id, ?), checkout_url = ?, expires_at = ? WHERE id = ? AND (session_id IS NULL OR session_id = ?)').bind(session.id, paymentUrl, expires, id, session.id).run();
+  return json({ url: paymentUrl, sessionId: session.id, invoiceUrl: invoiceUrl(env, session.id, input.language) });
 }
 export async function verifySignature(raw, signature, secret, now = Date.now()) {
   const fields = String(signature || '').split(',').map(field => field.trim().split('='));
@@ -199,7 +226,7 @@ async function webhook(request, env) {
   if (!order) return json({ received: true });
   if (order.mode !== stripeMode(env) || (order.session_id && order.session_id !== session.id)) fail(400, 'Order session mismatch.');
   if ((order.stripe_account || null) !== (event.account || null)) fail(400, 'Order Stripe account mismatch.');
-  let status = event.type === 'checkout.session.expired' ? 'expired' : event.type === 'checkout.session.async_payment_failed' ? 'failed' : 'pending';
+  let status = event.type === 'checkout.session.expired' ? 'expired' : event.type === 'checkout.session.async_payment_failed' ? 'failed' : event.type === 'checkout.session.completed' ? 'processing' : 'pending';
   if (session.payment_status === 'paid' && ['checkout.session.completed', 'checkout.session.async_payment_succeeded'].includes(event.type)) {
     if (session.currency !== order.currency || session.amount_total !== order.amount) fail(400, 'Order amount mismatch.');
     status = 'paid';
@@ -207,7 +234,7 @@ async function webhook(request, env) {
   // The event marker and order update commit atomically. Repeated or delayed events
   // cannot regress an already paid order or trigger duplicate fulfillment.
   await env.DB.batch([
-    env.DB.prepare('UPDATE orders SET status = ?, session_id = ?, email = ?, paid_at = CASE WHEN ? = ? THEN ? ELSE paid_at END WHERE id = ? AND status != ? AND (? = ? OR status = ?)').bind(status, session.id, session.customer_details?.email || '', status, 'paid', new Date().toISOString(), orderId, 'paid', status, 'paid', 'pending'),
+    env.DB.prepare('UPDATE orders SET status = ?, session_id = ?, email = ?, delivery_details = COALESCE(?, delivery_details), paid_at = CASE WHEN ? = ? THEN ? ELSE paid_at END WHERE id = ? AND status != ? AND (? = ? OR status IN (?, ?))').bind(status, session.id, session.customer_details?.email || '', deliveryDetails(session), status, 'paid', new Date().toISOString(), orderId, 'paid', status, 'paid', 'pending', 'processing'),
     env.DB.prepare('INSERT OR IGNORE INTO stripe_events (id) VALUES (?)').bind(event.id)
   ]);
   return json({ received: true });
@@ -222,14 +249,33 @@ async function route(request, env) {
   if (path === '/api/catalog' && request.method === 'GET') {
     const result = await env.DB.prepare('SELECT data, version FROM products ORDER BY position, id').all();
     const config = await settings(env);
-    return json({ products: result.results.map(decodeProduct).filter(product => product.active), checkout: { enabled: config.enabled && await ready(env), mode: stripeMode(env), fulfillment: config.fulfillment, shippingOre: config.shippingOre, currency: 'NOK' } });
+    return json({ products: result.results.map(decodeProduct).filter(product => product.active), checkout: { enabled: config.enabled && await ready(env), mode: stripeMode(env), pickupEnabled: config.pickupEnabled, shippingEnabled: config.shippingEnabled && config.shippingOre !== null, shippingOre: config.shippingOre, currency: 'NOK' } });
   }
   if (path === '/api/checkout' && request.method === 'POST') return checkout(request, env);
-  if (path === '/api/checkout/status' && request.method === 'GET') {
+  if (['/api/checkout/status', '/api/checkout/invoice'].includes(path) && request.method === 'GET') {
     const sessionId = url.searchParams.get('session_id');
-    if (!/^cs_(test_|live_)?[A-Za-z0-9_]{10,250}$/.test(sessionId || '')) fail(400, 'Invalid session.');
-    const order = await env.DB.prepare('SELECT status, mode FROM orders WHERE session_id = ?').bind(sessionId).first();
-    return json({ status: order?.status || 'pending', mode: order?.mode || null });
+    const orderId = url.searchParams.get('order_id');
+    if (sessionId ? !/^cs_(test_|live_)?[A-Za-z0-9_]{10,250}$/.test(sessionId) : !/^[a-f0-9-]{36}$/.test(orderId || '')) fail(400, 'Invalid session.');
+    const order = sessionId ? await env.DB.prepare('SELECT * FROM orders WHERE session_id = ?').bind(sessionId).first() : await env.DB.prepare('SELECT * FROM orders WHERE id = ?').bind(orderId).first();
+    if (!order) fail(404, 'Order not found.');
+    let status = effectiveOrderStatus(order);
+    if (path.endsWith('/status')) return json({ status, mode: order.mode });
+    // Existing pre-QR sessions can be resumed without creating a second charge.
+    if (status === 'pending' && !order.checkout_url) {
+      if (order.mode !== stripeMode(env)) fail(503, 'This payment session cannot be refreshed in the current Stripe mode.');
+      if (!order.session_id) fail(409, 'The payment session is still being created.');
+      const session = await stripe(env, `checkout/sessions/${encodeURIComponent(order.session_id)}`, { headers: order.stripe_account ? { 'Stripe-Account': order.stripe_account } : {} });
+      if (session.id !== order.session_id) fail(502, 'Unexpected payment session.');
+      order.checkout_url = session.status === 'open' ? safeCheckoutUrl(session.url) : null;
+      order.expires_at = Number.isInteger(session.expires_at) ? session.expires_at : order.expires_at;
+      status = session.status === 'expired' ? 'expired' : session.status === 'complete' ? 'processing' : 'pending';
+      await env.DB.prepare('UPDATE orders SET checkout_url = ?, expires_at = ?, status = ? WHERE id = ? AND status = ?').bind(order.checkout_url, order.expires_at, status, order.id, 'pending').run();
+      // A concurrent webhook may already have confirmed payment during retrieval.
+      const latest = await env.DB.prepare('SELECT status FROM orders WHERE id = ?').bind(order.id).first();
+      status = effectiveOrderStatus({ ...order, status: latest.status });
+    }
+    const items = JSON.parse(order.items);
+    return json({ id: order.id, createdAt: order.created_at, items, subtotal: order.subtotal ?? items.reduce((sum, item) => sum + item.quantity * item.priceOre, 0), shippingOre: order.shipping_ore, total: order.amount, currency: order.currency.toUpperCase(), fulfillment: order.fulfillment, status, mode: order.mode, expiresAt: order.expires_at ? new Date(order.expires_at * 1000).toISOString() : null, paymentUrl: status === 'pending' ? safeCheckoutUrl(order.checkout_url) : null });
   }
   if (path === '/api/admin/login' && request.method === 'POST') return login(request, env);
   if (!path.startsWith('/api/admin/')) fail(404, 'Not found.');
@@ -239,7 +285,7 @@ async function route(request, env) {
   if (path === '/api/admin/logout' && request.method === 'POST') { await env.DB.prepare('DELETE FROM sessions WHERE token_hash = ?').bind(sessionHash).run(); return json({ ok: true }); }
   if (path === '/api/admin/state' && request.method === 'GET') {
     const result = await env.DB.prepare('SELECT data, version FROM products ORDER BY position, id').all();
-    const orders = await env.DB.prepare('SELECT id, mode, status, amount, currency, items, email, created_at FROM orders ORDER BY created_at DESC LIMIT 100').all();
+    const orders = await env.DB.prepare('SELECT id, mode, status, amount, currency, items, email, created_at, fulfillment, shipping_ore, delivery_details FROM orders ORDER BY created_at DESC LIMIT 100').all();
     return json({ products: result.results.map(decodeProduct), settings: await settings(env), stripe: { mode: stripeMode(env), secretConfigured: stripeMode(env) !== 'unconfigured', webhookConfigured: Boolean(connect.enabled(env) ? env.STRIPE_CONNECT_WEBHOOK_SECRET : env.STRIPE_WEBHOOK_SECRET), ready: await ready(env), connect: await connect.adminState(env, request), webhookUrl: new URL('/api/stripe/webhook', request.url).href }, orders: orders.results.map(order => ({ ...order, items: JSON.parse(order.items) })) });
   }
   if (path === '/api/admin/products' && request.method === 'POST') {

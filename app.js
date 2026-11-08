@@ -7,7 +7,9 @@ Object.assign(nornailsTranslations.messages.nb, {
   'checkout.quantity': 'Antall', 'checkout.buy': 'Til betaling', 'checkout.test': 'Testbetaling · ingen ekte belastning.',
   'checkout.pickup': 'Hentes i Sandvika etter avtale.', 'checkout.shipping': 'Frakt i Norge:',
   'checkout.contact': 'Kontakt oss ved spørsmål om produktet eller bestillingen.', 'checkout.error': 'Betalingen kunne ikke startes. Prøv igjen eller kontakt oss.',
-  'checkout.loading': 'Åpner Stripe …', 'checkout.catalogError': 'Nettkatalogen er midlertidig utilgjengelig. Kontakt oss for oppdatert utvalg og priser.',
+  'checkout.loading': 'Oppretter bestillingen …', 'checkout.catalogError': 'Nettkatalogen er midlertidig utilgjengelig. Kontakt oss for oppdatert utvalg og priser.',
+  'checkout.delivery': 'Hvordan vil du motta bestillingen?', 'checkout.choose': 'Velg leveringsmåte', 'checkout.pickupOption': 'Hent i Sandvika', 'checkout.shippingOption': 'Levering i Norge',
+  'checkout.total': 'Totalt', 'checkout.subtotal': 'Produkter', 'checkout.orderHelp': 'Du ser bestillingen og en QR-kode for betaling på neste side.',
   'products.description': 'Utforsk produktene. Kontakt oss hvis en pris ikke er oppgitt.',
   'faq.prices.answer': 'Priser vises der de er oppgitt. Kontakt oss for tilgjengelighet og priser på øvrige produkter.'
 });
@@ -15,7 +17,9 @@ Object.assign(nornailsTranslations.messages.en, {
   'checkout.quantity': 'Quantity', 'checkout.buy': 'Continue to checkout', 'checkout.test': 'Test payment · no real charge.',
   'checkout.pickup': 'Pickup in Sandvika by arrangement.', 'checkout.shipping': 'Shipping in Norway:',
   'checkout.contact': 'Contact us with questions about the product or your order.', 'checkout.error': 'Checkout could not be started. Please try again or contact us.',
-  'checkout.loading': 'Opening Stripe …', 'checkout.catalogError': 'The online catalogue is temporarily unavailable. Contact us for current products and prices.',
+  'checkout.loading': 'Creating your order…', 'checkout.catalogError': 'The online catalogue is temporarily unavailable. Contact us for current products and prices.',
+  'checkout.delivery': 'How would you like to receive your order?', 'checkout.choose': 'Choose a delivery method', 'checkout.pickupOption': 'Pickup in Sandvika', 'checkout.shippingOption': 'Delivery within Norway',
+  'checkout.total': 'Total', 'checkout.subtotal': 'Products', 'checkout.orderHelp': 'The next page shows your order and a QR code for payment.',
   'products.description': 'Explore the products. Contact us if a price is not listed.',
   'faq.prices.answer': 'Prices are shown where available. Contact us for availability and prices on other products.'
 });
@@ -167,7 +171,8 @@ function renderProductDetails(id) {
   const product = localProduct(source);
   const values = { name: product.brand + ' ' + product.name, unit: product.unit };
   const inquiry = mailLink(t('mail.productSubject', values), t('mail.productBody', values));
-  const checkout = commerceSettings.enabled && product.priceOre != null ? `<form class="checkout-form" data-checkout="${product.id}"><label>${t('checkout.quantity')}<input name="quantity" type="number" min="1" max="20" step="1" value="1" required></label><button class="button button-dark" type="submit">${t('checkout.buy')} ${arrow}</button><p class="checkout-note">${commerceSettings.mode === 'test' ? t('checkout.test') + ' ' : ''}${t(commerceSettings.fulfillment === 'shipping' ? 'checkout.shipping' : 'checkout.pickup')}${commerceSettings.fulfillment === 'shipping' ? ' ' + productPrice({ priceOre: commerceSettings.shippingOre }) : ''}</p><p class="checkout-error" role="alert"></p></form>` : '';
+  const deliveryOptions = `${commerceSettings.pickupEnabled ? `<option value="pickup">${t('checkout.pickupOption')}</option>` : ''}${commerceSettings.shippingEnabled && commerceSettings.shippingOre !== null ? `<option value="shipping">${t('checkout.shippingOption')} · ${escapeHtml(productPrice({ priceOre: commerceSettings.shippingOre }))}</option>` : ''}`;
+  const checkout = commerceSettings.enabled && product.priceOre != null ? `<form class="checkout-form" data-checkout="${product.id}"><label>${t('checkout.quantity')}<input name="quantity" type="number" min="1" max="20" step="1" value="1" required></label><label class="checkout-delivery">${t('checkout.delivery')}<select name="fulfillment" required><option value="" disabled selected>${t('checkout.choose')}</option>${deliveryOptions}</select></label><p class="checkout-estimate"><span data-total-label>${t('checkout.subtotal')}</span><strong data-order-total>${escapeHtml(productPrice(product))}</strong></p><button class="button button-dark" type="submit">${t('checkout.buy')} ${arrow}</button><p class="checkout-note">${commerceSettings.mode === 'test' ? t('checkout.test') + ' ' : ''}${t('checkout.orderHelp')}</p><p class="checkout-error" role="alert"></p></form>` : '';
   document.querySelector('#product-dialog-content').innerHTML = `<div class="product-dialog-layout"><div class="dialog-product-image"><img src="${escapeHtml(product.image)}" alt="${escapeHtml(product.brand + ' ' + product.name)}" width="700" height="700" referrerpolicy="no-referrer"></div><div class="dialog-product-info"><span class="eyebrow">${escapeHtml(product.brand)} / ${escapeHtml(product.tag)}</span><h2 id="dialog-title">${escapeHtml(product.name)}</h2><span class="product-unit">${escapeHtml(product.unit)}</span><p>${escapeHtml(product.description)}</p><p class="detail-price">${escapeHtml(productPrice(product))}</p><dl class="product-specs">${product.specs.map(([label, value]) => `<div><dt>${escapeHtml(label)}</dt><dd>${escapeHtml(value)}</dd></div>`).join('')}</dl>${checkout}<a class="button ${checkout ? 'inquiry-secondary' : 'button-dark'}" href="${escapeHtml(inquiry)}">${t('product.ask')} ${arrow}</a><p class="dialog-disclaimer">${product.priceOre == null ? t('product.disclaimer') : t('checkout.contact')}${product.safety ? ' ' + t('product.safety') : ''}</p></div></div>`;
 }
 
@@ -364,6 +369,20 @@ async function loadStoreCatalogue() {
   }
 }
 
+function updateOrderEstimate(event) {
+  const form = event.target.closest('[data-checkout]');
+  if (!form) return;
+  const product = products.find(item => item.id === form.dataset.checkout);
+  const quantity = Number(form.elements.quantity.value);
+  if (!product || !Number.isInteger(quantity) || quantity < 1 || quantity > 20) return;
+  const selected = form.elements.fulfillment.value;
+  const fee = selected === 'shipping' ? commerceSettings.shippingOre || 0 : 0;
+  form.querySelector('[data-total-label]').textContent = t(selected ? 'checkout.total' : 'checkout.subtotal');
+  form.querySelector('[data-order-total]').textContent = productPrice({ priceOre: product.priceOre * quantity + fee });
+}
+document.addEventListener('input', updateOrderEstimate);
+document.addEventListener('change', updateOrderEstimate);
+
 document.addEventListener('submit', async event => {
   const form = event.target.closest('[data-checkout]');
   if (!form) return;
@@ -373,17 +392,21 @@ document.addEventListener('submit', async event => {
   const quantity = Number(form.elements.quantity.value);
   const error = form.querySelector('.checkout-error');
   if (!Number.isInteger(quantity) || quantity < 1 || quantity > 20) { form.reportValidity(); return; }
-  const signature = `${form.dataset.checkout}:${quantity}:${currentLanguage}`;
+  const fulfillment = form.elements.fulfillment.value;
+  if (!['pickup', 'shipping'].includes(fulfillment)) { form.reportValidity(); return; }
+  const signature = `${form.dataset.checkout}:${quantity}:${fulfillment}:${currentLanguage}`;
   if (form.dataset.signature !== signature) { form.dataset.requestId = crypto.randomUUID(); form.dataset.signature = signature; }
   button.disabled = true;
   button.textContent = t('checkout.loading');
   error.textContent = '';
   try {
-    const response = await fetch(globalThis.nornailsConfig.apiUrl.replace(/\/$/, '') + '/api/checkout', { method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: AbortSignal.timeout(25000), body: JSON.stringify({ items: [{ id: form.dataset.checkout, quantity }], language: currentLanguage, requestId: form.dataset.requestId }) });
+    const response = await fetch(globalThis.nornailsConfig.apiUrl.replace(/\/$/, '') + '/api/checkout', { method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: AbortSignal.timeout(25000), body: JSON.stringify({ items: [{ id: form.dataset.checkout, quantity }], fulfillment, language: currentLanguage, requestId: form.dataset.requestId }) });
     const result = await response.json();
     if (!response.ok) { if (response.status < 500) form.dataset.signature = ''; throw new Error('Checkout unavailable'); }
-    const target = new URL(result.url);
-    if (target.protocol !== 'https:' || target.hostname !== 'checkout.stripe.com') throw new Error('Invalid checkout URL');
+    if (!/^cs_(test_|live_)?[A-Za-z0-9_]{10,250}$/.test(result.sessionId || '')) throw new Error('Invalid payment session');
+    const target = new URL('payment.html', window.location.href);
+    target.searchParams.set('session_id', result.sessionId);
+    target.searchParams.set('lang', currentLanguage);
     window.location.assign(target.href);
   } catch { error.textContent = t('checkout.error'); button.disabled = false; button.innerHTML = `${t('checkout.buy')} ${arrow}`; }
 });

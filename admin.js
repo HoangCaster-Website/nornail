@@ -101,12 +101,13 @@
     const form = $('#payment-settings');
     form.elements.enabled.checked = checkoutSettings.enabled;
     form.elements.enabled.disabled = !remote || !stripe.ready;
-    form.elements.fulfillment.value = checkoutSettings.fulfillment;
-    form.elements.shipping.value = (checkoutSettings.shippingOre / 100).toFixed(2);
+    form.elements.pickupEnabled.checked = checkoutSettings.pickupEnabled;
+    form.elements.shippingEnabled.checked = checkoutSettings.shippingEnabled;
+    form.elements.shipping.value = checkoutSettings.shippingOre === null ? '' : (checkoutSettings.shippingOre / 100).toFixed(2);
     form.elements.taxMode.value = checkoutSettings.taxMode;
     form.elements.termsUrl.value = checkoutSettings.termsUrl;
     form.elements.termsConfirmed.checked = checkoutSettings.termsConfirmed;
-    $('#shipping-field').hidden = checkoutSettings.fulfillment !== 'shipping';
+    $('#shipping-field').hidden = !checkoutSettings.shippingEnabled;
     renderConnect();
   }
   const setupStatuses = { not_connected: 'Not started', invited: 'Not started', success: 'Successful', pending: 'Awaiting Stripe review', needs_information: 'More information needed', failed: 'Setup failed', cancelled: 'Cancelled', disconnected: 'Disconnected' };
@@ -157,12 +158,19 @@
     finally { renderConnect(); }
   });
 
+  function orderDelivery(order) {
+    let details = null;
+    try { details = order.delivery_details ? JSON.parse(order.delivery_details) : null; } catch { /* Older orders may not include delivery details. */ }
+    const address = details?.address;
+    const lines = details ? [details.name, address?.line1, address?.line2, [address?.postal_code, address?.city].filter(Boolean).join(' '), address?.country].filter(Boolean) : [];
+    return `<p class="order-delivery"><strong>${order.fulfillment === 'shipping' ? 'Delivery within Norway' : 'Pickup in Sandvika'}</strong>${lines.length ? '<br>' + lines.map(escape).join('<br>') : ''}</p>`;
+  }
   function renderOrders() {
     if (!orders.length) {
       $('#orders-content').innerHTML = `<div class="orders-empty"><p class="eyebrow">${remote ? 'NO ORDERS YET' : 'READY WHEN YOU ARE'}</p><h2>Your orders will arrive here.</h2><p>${remote ? 'Completed checkouts appear after Stripe sends a verified payment event. No sample orders are shown.' : 'Connect your store API and configure Stripe to receive orders. No sample sales or customer data is used.'}</p></div>`;
       return;
     }
-    $('#orders-content').innerHTML = '<p class="helper">Showing the 100 most recent checkout attempts. Only “Paid” means payment was confirmed. Test orders are labelled.</p>' + orders.map(order => `<article class="order-card"><div><h3>${escape(order.email || 'Checkout in progress')}<span class="pill">${order.mode === 'test' ? 'TEST' : 'LIVE'}</span></h3><p>${order.items.map(item => `${escape(item.name)} × ${item.quantity}`).join(' · ')}</p><code>${escape(order.id)}</code><br><small>${escape(new Date(order.created_at).toLocaleString())}</small></div><div><strong>${money(order.amount)} NOK</strong><span class="pill ${order.status === 'paid' ? 'connected' : ''}">${escape({ paid: 'Paid', pending: 'Pending', failed: 'Failed', expired: 'Expired' }[order.status] || 'Pending')}</span></div></article>`).join('');
+    $('#orders-content').innerHTML = '<p class="helper">Showing the 100 most recent checkout attempts. Only “Paid” means payment was confirmed. Test orders are labelled.</p>' + orders.map(order => `<article class="order-card"><div><h3>${escape(order.email || 'Checkout in progress')}<span class="pill">${order.mode === 'test' ? 'TEST' : 'LIVE'}</span></h3><p>${order.items.map(item => `${escape(item.name)} × ${item.quantity}`).join(' · ')}</p>${orderDelivery(order)}<code>${escape(order.id)}</code><br><small>${escape(new Date(order.created_at).toLocaleString())}</small></div><div><strong>${money(order.amount)} NOK</strong><span class="pill ${order.status === 'paid' ? 'connected' : ''}">${escape({ paid: 'Paid', pending: 'Unpaid', processing: 'Processing payment', failed: 'Failed', expired: 'Expired' }[order.status] || 'Pending')}</span></div></article>`).join('');
   }
   function renderAll() { renderMode(); renderProducts(); renderPayments(); renderOrders(); }
   async function request(path, options = {}, base = apiUrl, accessToken = token) {
@@ -361,7 +369,7 @@
       renderAll();
     }
   });
-  $('#fulfillment').addEventListener('change', event => { $('#shipping-field').hidden = event.target.value !== 'shipping'; });
+  $('#shipping-enabled').addEventListener('change', event => { $('#shipping-field').hidden = !event.target.checked; });
   $('#payment-settings').addEventListener('submit', async event => {
     event.preventDefault();
     const form = event.currentTarget;
@@ -371,8 +379,8 @@
     try {
       const fields = form.elements;
       const shippingText = fields.shipping.value.trim();
-      const shippingOre = shippingText && !/^0([.,]0{1,2})?$/.test(shippingText) ? rules.price(shippingText) : 0;
-      let config = rules.settings({ enabled: remote && fields.enabled.checked, fulfillment: fields.fulfillment.value, shippingOre: shippingOre || 0, taxMode: fields.taxMode.value, termsUrl: fields.termsUrl.value.trim(), termsConfirmed: fields.termsConfirmed.checked });
+      const shippingOre = shippingText === '' ? null : /^0([.,]0{1,2})?$/.test(shippingText) ? 0 : rules.price(shippingText);
+      let config = rules.settings({ enabled: remote && fields.enabled.checked, pickupEnabled: fields.pickupEnabled.checked, shippingEnabled: fields.shippingEnabled.checked, shippingOre, taxMode: fields.taxMode.value, termsUrl: fields.termsUrl.value.trim(), termsConfirmed: fields.termsConfirmed.checked });
       if (remote) config = await request('/api/admin/settings', { method: 'PUT', body: JSON.stringify(config) });
       else { try { localStorage.setItem(settingsKey, JSON.stringify(config)); } catch { throw new Error('Browser storage is unavailable. Settings were not saved.'); } }
       checkoutSettings = config;

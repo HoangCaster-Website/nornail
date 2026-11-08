@@ -49,16 +49,22 @@ globalThis.nornailsCommerce = (() => {
   }
   function settings(input) {
     if (!input || typeof input.enabled !== 'boolean' || typeof input.termsConfirmed !== 'boolean') throw new Error('Invalid payment settings.');
-    if (!['pickup', 'shipping'].includes(input.fulfillment)) throw new Error('Choose pickup or shipping.');
-    if (!Number.isInteger(input.shippingOre) || input.shippingOre < 0 || input.shippingOre > 9999999) throw new Error('Invalid shipping fee.');
+    // Migrate older single-method settings without enabling an unconfirmed fee.
+    const pickupEnabled = input.pickupEnabled ?? true;
+    const shippingEnabled = input.shippingEnabled ?? input.fulfillment === 'shipping';
+    if (typeof pickupEnabled !== 'boolean' || typeof shippingEnabled !== 'boolean') throw new Error('Choose the supported delivery methods.');
+    const shippingOre = input.shippingOre ?? null;
+    if (shippingOre !== null && (!Number.isInteger(shippingOre) || shippingOre < 0 || shippingOre > 9999999)) throw new Error('Invalid shipping fee.');
+    if (input.enabled && !pickupEnabled && !shippingEnabled) throw new Error('Enable at least one delivery method.');
+    if (input.enabled && shippingEnabled && shippingOre === null) throw new Error('Set the shipping fee before offering delivery.');
     if (!['included', 'automatic'].includes(input.taxMode)) throw new Error('Choose a tax setting.');
     let termsUrl = '';
     if (input.termsUrl) {
       try { const url = new URL(input.termsUrl); if (url.protocol !== 'https:') throw new Error(); termsUrl = url.href; } catch { throw new Error('Terms URL must use HTTPS.'); }
     }
     if (input.enabled && (!input.termsConfirmed || !termsUrl)) throw new Error('Confirm prices, tax and delivery, and add the terms URL before enabling checkout.');
-    return { enabled: input.enabled, currency: 'NOK', fulfillment: input.fulfillment, shippingOre: input.shippingOre, taxMode: input.taxMode, termsConfirmed: input.termsConfirmed, termsUrl };
+    return { enabled: input.enabled, currency: 'NOK', pickupEnabled, shippingEnabled, shippingOre, taxMode: input.taxMode, termsConfirmed: input.termsConfirmed, termsUrl };
   }
-  const defaults = { enabled: false, currency: 'NOK', fulfillment: 'pickup', shippingOre: 0, taxMode: 'included', termsConfirmed: false, termsUrl: '' };
+  const defaults = { enabled: false, currency: 'NOK', pickupEnabled: true, shippingEnabled: true, shippingOre: null, taxMode: 'included', termsConfirmed: false, termsUrl: '' };
   return { product, price, image, settings, defaults };
 })();
