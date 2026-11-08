@@ -139,3 +139,18 @@ test('multi-item bags use authoritative totals, charge shipping once and reject 
     assert.equal(mock.calls.filter(call=>call.options.method==='POST').length,1);
   } finally {mock.restore();}
 });
+
+test('isolated sandbox accepts claimable test keys, keeps test return URLs and refuses live credentials',async()=>{
+  const env=environment();await prepareCheckout(env,10000);env.TEST_ONLY=true;env.STRIPE_SECRET_KEY='rkcs_test_fixture';const mock=mockStripe();
+  try {
+    const order=await createOrder(env,'pickup',1);
+    assert.match(mock.calls[0].options.headers.Authorization,/Bearer rkcs_test_/);
+    assert.equal(new URL(mock.calls[0].options.body.get('success_url')).searchParams.get('sandbox'),'1');
+    assert.equal(new URL(mock.calls[0].options.body.get('cancel_url')).searchParams.get('sandbox'),'1');
+    assert.equal(new URL(order.invoiceUrl).searchParams.get('sandbox'),'1');
+    env.STRIPE_SECRET_KEY='sk_live_fixture';
+    assert.equal((await call(env,'/api/catalog')).data.checkout.enabled,false);
+    assert.equal((await call(env,'/api/checkout',{method:'POST',input:{requestId:crypto.randomUUID(),items:[{id:'w1',quantity:1}],fulfillment:'pickup'}})).status,503);
+    assert.equal(mock.calls.filter(call=>call.options.method==='POST').length,1);
+  } finally {mock.restore();}
+});

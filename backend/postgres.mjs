@@ -3,24 +3,25 @@
 import { statements } from './statements.mjs';
 
 const tables = ['products', 'settings', 'sessions', 'rate_limits', 'orders', 'stripe_events', 'stripe_merchants', 'connect_invites', 'connect_states', 'connect_sessions'];
-export function postgresStatement(source) {
+export function postgresStatement(source, prefix = 'nornails_') {
+  if (!['nornails_', 'nornails_sandbox_'].includes(prefix)) throw new Error('Invalid store namespace.');
   if (!statements.includes(source)) throw new Error('Unknown store statement.');
   let sql = source.replace(/\b(?:FROM|INTO|(?<!DO )UPDATE) (\w+)/g, (match, table) => {
     if (!tables.includes(table)) throw new Error('Table outside Nornails.');
-    return match.replace(table, 'public.nornails_' + table);
+    return match.replace(table, 'public.' + prefix + table);
   });
   let parameter = 0;
   sql = sql.replace(/\?/g, () => '$' + (++parameter));
   if (sql.startsWith('INSERT OR IGNORE')) sql = sql.replace('INSERT OR IGNORE', 'INSERT') + ' ON CONFLICT DO NOTHING';
   // Qualify the target counter to distinguish it from EXCLUDED in PostgreSQL.
-  sql = sql.replace('SET count = count + 1', 'SET count = nornails_rate_limits.count + 1');
+  sql = sql.replace('SET count = count + 1', 'SET count = ' + prefix + 'rate_limits.count + 1');
   return sql;
 }
 
 export class PostgresStore {
-  constructor(sql) { this.sql = sql; }
+  constructor(sql, prefix = 'nornails_') { this.sql = sql; this.prefix = prefix; }
   prepare(source) {
-    const text = postgresStatement(source);
+    const text = postgresStatement(source, this.prefix);
     const db = this;
     return {
       values: [], text,

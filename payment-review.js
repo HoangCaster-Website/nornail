@@ -39,7 +39,7 @@ globalThis.nornailsCheckoutReview = { start() {
     $('#payment-empty').hidden = true;
     $('#cart-checkout-layout').hidden = false;
     for (const [selector, value] of Object.entries({ '#payment-eyebrow':c.eyebrow, '#payment-title':empty ? c.empty : c.title, '#payment-message':empty ? c.emptyBody : c.intro, '#review-heading':c.items, '#review-status':c.status, '#review-eyebrow':c.next, '#review-title':c.review, '#review-delivery-label':c.delivery, '#review-subtotal-label':c.subtotal, '#review-shipping-label':c.fee, '#review-total-label':c.total, '#review-back':c.back, '#header-back':c.back, '#secure-note':c.secure, '#review-retry':c.retry })) $(selector).textContent = value;
-    $('#review-back').href = $('#header-back').href = `index.html?lang=${language}#produkter`;
+    $('#review-back').href = $('#header-back').href = globalThis.nornailsConfig.pageUrl('index.html',{lang:language}) + '#produkter';
     $('#review-items').innerHTML = empty ? `<p class="review-empty">${c.emptyBody}</p>` : order.lines.map(({ id, quantity, product: source }) => {
       const product = source ? local(source) : null;
       const name = product ? product.brand + ' ' + product.name : c.unavailableProduct + ' · ' + id;
@@ -64,7 +64,7 @@ globalThis.nornailsCheckoutReview = { start() {
     $('#review-retry').disabled = busy;
     $('#review-error').textContent = failure;
     $('#review-test').hidden = checkout.mode !== 'test'; $('#review-test').textContent = c.test;
-    $('#review-quote').hidden = empty || loading;
+    $('#review-quote').hidden = empty || loading || globalThis.nornailsConfig.sandbox;
     $('#review-quote').textContent = order.subtotal === null ? c.quote : c.contact;
     const list = order.lines.map(({ id, quantity, product }) => `${quantity} × ${product ? local(product).brand + ' ' + local(product).name + ' (' + local(product).unit + ')' : id}`).join('\n');
     const delivery = fulfillment ? '\n\n' + (fulfillment === 'shipping' ? c.shipping : c.pickup) : '';
@@ -143,8 +143,7 @@ globalThis.nornailsCheckoutReview = { start() {
         // that exact session; never create another attempt to compensate.
         try { bag.saveIntent({ ...attempt, sessionId }); } catch { /* Existing requestId remains the retry key. */ }
       }
-      const target = new URL('payment.html', location.href);
-      target.search = new URLSearchParams({ session_id:sessionId,lang:language }).toString();
+      const target = new URL(globalThis.nornailsConfig.pageUrl('payment.html',{session_id:sessionId,lang:language}));
       location.replace(target.href);
     } catch (error) { failure = error.message === 'changed' ? copy().changed : ['QuotaExceededError','SecurityError'].includes(error.name) ? copy().storage : copy().error; }
     finally { busy = false; render(); if (refresh) load(); }

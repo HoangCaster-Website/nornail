@@ -5,6 +5,10 @@ Project: `clyshqnbxapwipacbaxd`. The storefront remains on GitHub Pages and read
 The separate `nornails-api` Edge Function is deployed. No Cloudflare account or D1
 deployment is needed for this store.
 
+A separate **[Stripe sandbox](SANDBOX.md)** is now available for real-provider test
+payments through `?sandbox=1`. Its temporary account, prices, orders, cart and API
+are isolated from the real store described below. Test access expires 2026-11-15.
+
 ## Current state
 
 - Eight confirmed products are stored in `nornails_products`; prices are unset.
@@ -95,7 +99,7 @@ terms and tax settings, then test the complete Stripe flow before enabling check
 
 ## Verification performed
 
-- 30 automated API, payment, OAuth and PostgreSQL-adapter checks passed.
+- 34 automated API, payment, OAuth, sandbox and PostgreSQL-adapter checks passed.
 - All 42 prepared statements ran against the actual hosted PostgreSQL database.
   Version conflicts and successful/failed atomic batches were checked. Every test
   write was rolled back; products remain eight, orders/admins/sessions remain zero.
@@ -107,7 +111,9 @@ terms and tax settings, then test the complete Stripe flow before enabling check
 
 The rollback integration runner is `backend/tests/postgres-check.mjs`; it needs a
 developer-controlled PostgreSQL connection. It is not exposed as a public route.
-Stripe network calls in automated tests are mocked; a real charge is not tested.
+Stripe network calls in automated unit/integration tests are mocked. A separate
+real Stripe sandbox checkout and signed-webhook end-to-end test has also passed;
+see `SANDBOX.md`. No live charge has been made.
 
 References: [Supabase function secrets](https://supabase.com/docs/guides/functions/secrets),
 [Postgres from Edge Functions](https://supabase.com/docs/guides/functions/connect-to-postgres),

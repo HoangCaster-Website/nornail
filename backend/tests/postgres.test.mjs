@@ -29,6 +29,16 @@ test('Postgres values remain bound and affected row counts preserve edit conflic
   assert.deepEqual(calls[0].values, [input, 3]);
 });
 
+test('sandbox statements use only the separate namespace, including upsert counters', () => {
+  for (const statement of statements) {
+    const sql = postgresStatement(statement,'nornails_sandbox_');
+    assert.doesNotMatch(sql,/public\.nornails_(?!sandbox_)/);
+    for (const match of sql.matchAll(/\b(?:FROM|INTO|(?<!DO )UPDATE) (\S+)/g)) assert.match(match[1],/^public\.nornails_sandbox_/);
+  }
+  assert.match(postgresStatement(statements[2],'nornails_sandbox_'),/SET count = nornails_sandbox_rate_limits.count \+ 1/);
+  assert.throws(() => postgresStatement(statements[0],'other_app_'),/Invalid store namespace/);
+});
+
 test('Supabase routes accept both gateway paths while keeping private admin access closed', async () => {
   const env = { ...environment(), API_PATH_PREFIX: '/functions/v1/nornails-api', FUNCTION_PATH: '/nornails-api', STORAGE_NAME: 'supabase', adminCredentials: async () => null };
   for (const prefix of ['/functions/v1/nornails-api', '/nornails-api']) {

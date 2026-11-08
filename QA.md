@@ -101,3 +101,12 @@ Bản cập nhật dùng nền trắng và taupe, ảnh manicure thật, chữ L
 - Clearing the choice resets the delivery/total prompts and disables payment. Choosing another method removes the previous selection; required delivery remains enforced by checkout state and the server.
 - Browser verification passed with label clicks, keyboard Space, switching between pickup/shipping, and clearing a selection on iPhone 13 touch. Existing multi-item/retry/QR/paid-state scenarios still pass. Checked NO/EN and 1440/768/390/320px layouts without JS errors or overflow.
 - The owner deferred the email-login/notification request. No customer account, email dispatch, Auth setting or database change was made in this update.
+
+## Real Stripe sandbox — 2026-11-08
+
+- Provisioned a temporary anonymous Stripe sandbox through the official CLI, expiring 2026-11-15. Its claimable test key and actual webhook secret are stored encrypted in Supabase Vault, outside public/static source; no live account or email login was configured.
+- Added twelve isolated `nornails_sandbox_*` tables (including private config), a separate Edge Function, sample prices/shipping, a test guide, warning banner and NO/EN environment-preserving navigation. Main-store products/prices/orders and existing notes are unchanged. Both stores retain separate browser carts and checkout intent IDs.
+- The new function accepts only test credentials. Shared worker guards refuse live checkout/webhooks when TEST_ONLY is set, and the SQL adapter permits only the explicit real/sandbox namespaces. RLS/grants prevent publishable-key access to private tables and Vault. Advisors checked.
+- All 34 automated tests pass. Existing main-store browser checkout/delivery toggle tests still pass, including iPhone touch and 1440/768/390/320px layouts.
+- Real hosted API created a two-product NOK 235 Stripe session. Decoded on-screen QR exactly matched its hosted Checkout URL with fragment. Entered the official 4242 test card on Stripe, completed payment, and verified the authentic signed webhook changed the separate database order to paid. Another open invoice tab updated automatically, hid the QR and settled only the test cart.
+- Sandbox review/invoice layouts passed 1440/768/390/320px checks without JS errors/overflow. No real funds moved. Test instructions and terms explicitly state no goods or delivery, and the guide gives the expiry date.

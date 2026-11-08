@@ -55,6 +55,7 @@ function invoiceUrl(env, sessionId, language) {
   const url = new URL('payment.html', env.STOREFRONT_URL.endsWith('/') ? env.STOREFRONT_URL : env.STOREFRONT_URL + '/');
   url.searchParams.set('session_id', sessionId);
   url.searchParams.set('lang', language === 'en' ? 'en' : 'nb');
+  if (env.TEST_ONLY) url.searchParams.set('sandbox', '1');
   return url.href;
 }
 function effectiveOrderStatus(order) {
@@ -69,8 +70,9 @@ function deliveryDetails(session) {
   const clean = value => typeof value === 'string' ? value.slice(0, 300) : '';
   return JSON.stringify({ name: clean(details.name), address: Object.fromEntries(['line1','line2','city','postal_code','state','country'].map(key => [key, clean(details.address[key])])) });
 }
-function stripeMode(env) { return /^sk_test_/.test(env.STRIPE_SECRET_KEY || '') ? 'test' : /^sk_live_/.test(env.STRIPE_SECRET_KEY || '') ? 'live' : 'unconfigured'; }
+function stripeMode(env) { return /^(?:sk|rk|rkcs)_test_/.test(env.STRIPE_SECRET_KEY || '') ? 'test' : /^(?:sk|rk)_live_/.test(env.STRIPE_SECRET_KEY || '') ? 'live' : 'unconfigured'; }
 async function ready(env) {
+  if (env.TEST_ONLY && stripeMode(env) !== 'test') return false;
   if (stripeMode(env) === 'unconfigured' || !/^https:\/\//.test(env.STOREFRONT_URL || '')) return false;
   if (!connect.enabled(env)) return /^whsec_/.test(env.STRIPE_WEBHOOK_SECRET || '');
   if (!connect.configured(env) || !/^whsec_/.test(env.STRIPE_CONNECT_WEBHOOK_SECRET || '')) return false;
@@ -173,10 +175,11 @@ async function checkout(request, env) {
   const success = new URL('payment.html', env.STOREFRONT_URL.endsWith('/') ? env.STOREFRONT_URL : env.STOREFRONT_URL + '/');
   success.searchParams.set('session_id', '{CHECKOUT_SESSION_ID}');
   success.searchParams.set('lang', input.language === 'en' ? 'en' : 'nb');
+  if (env.TEST_ONLY) success.searchParams.set('sandbox', '1');
   const cancel = new URL(success);
   // The order reference exists before Stripe creates its session. Use it for
   // cancellation instead of assuming a success-URL placeholder works here.
-  cancel.search = new URLSearchParams({ order_id: id, cancelled: '1', lang: input.language === 'en' ? 'en' : 'nb' }).toString();
+  cancel.search = new URLSearchParams({ order_id: id, cancelled: '1', lang: input.language === 'en' ? 'en' : 'nb', ...(env.TEST_ONLY ? { sandbox:'1' } : {}) }).toString();
   const params = new URLSearchParams({ mode: 'payment', success_url: success.href.replace('%7BCHECKOUT_SESSION_ID%7D', '{CHECKOUT_SESSION_ID}'), cancel_url: cancel.href, locale: input.language === 'en' ? 'en' : 'nb', client_reference_id: id, 'metadata[order_id]': id, 'metadata[fulfillment]': input.fulfillment, 'consent_collection[terms_of_service]': 'required', 'custom_text[terms_of_service_acceptance][message]': `I agree to the [terms of sale](${config.termsUrl}).` });
   items.forEach((item, index) => {
     params.set(`line_items[${index}][price_data][currency]`, 'nok');
@@ -212,6 +215,7 @@ export async function verifySignature(raw, signature, secret, now = Date.now()) 
 }
 async function webhook(request, env) {
   if ((!env.STRIPE_WEBHOOK_SECRET && !env.STRIPE_CONNECT_WEBHOOK_SECRET) || stripeMode(env) === 'unconfigured') fail(503, 'Webhook is not configured.');
+  if (env.TEST_ONLY && stripeMode(env) !== 'test') fail(503, 'Sandbox accepts test credentials only.');
   const raw = await readLimited(request, 1048576);
   const signature = request.headers.get('stripe-signature');
   const connectSigned = Boolean(env.STRIPE_CONNECT_WEBHOOK_SECRET) && await verifySignature(raw, signature, env.STRIPE_CONNECT_WEBHOOK_SECRET);

@@ -37,7 +37,7 @@
     document.querySelectorAll('[data-payment-language]').forEach(button => button.setAttribute('aria-pressed', String(button.dataset.paymentLanguage === language)));
     text('#payment-eyebrow',c.eyebrow); text('#payment-title',c[state] || c.unavailable); text('#payment-message',c[state+'Body'] || c.wait);
     for (const [selector,key] of Object.entries({'#invoice-title':'invoice','#reference-label':'reference','#date-label':'date','#subtotal-label':'subtotal','#shipping-label':'shipping','#total-label':'total','#pay-now':'pay','#check-again':'retry','#retry-empty':'retry','#back-store':'back','#header-back':'headerBack','#print-order':'print','#secure-note':'secure'})) text(selector,c[key]);
-    $('#back-store').href = $('#header-back').href = `index.html?lang=${language}#produkter`;
+    $('#back-store').href = $('#header-back').href = globalThis.nornailsConfig.pageUrl('index.html',{lang:language}) + '#produkter';
     $('#invoice-layout').hidden = !invoice;
     $('#payment-empty').hidden = Boolean(invoice);
     $('#retry-empty').hidden = !api || !validReference || !['unavailable','invalid'].includes(state);

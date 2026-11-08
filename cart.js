@@ -1,8 +1,8 @@
 'use strict';
 // Persist identifiers and quantities only. Prices always come from the store API.
 globalThis.nornailsCart = (() => {
-  const key = 'nornails.cart.v1';
-  const intentKey = 'nornails.cart.checkout.v1';
+  const key = globalThis.nornailsConfig?.sandbox ? 'nornails.sandbox.cart.v1' : 'nornails.cart.v1';
+  const intentKey = globalThis.nornailsConfig?.sandbox ? 'nornails.sandbox.cart.checkout.v1' : 'nornails.cart.checkout.v1';
   function validate(items) {
     if (!Array.isArray(items) || items.length > 20) throw new Error('Invalid basket.');
     const ids = new Set();
