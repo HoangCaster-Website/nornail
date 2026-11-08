@@ -53,3 +53,8 @@ html{scroll-padding-top:180px}
   .header-search-form>input::placeholder{font-size:10px}
   .search-submit{min-width:55px;padding-inline:12px}
 }
+
+/* Connected catalogue and Stripe Checkout, enabled only by the store API. */
+.detail-price{font-size:20px!important;color:var(--wine);font-weight:500;margin:17px 0!important}.checkout-form{display:grid;grid-template-columns:74px 1fr;gap:12px;align-items:end;margin:22px 0 12px}.checkout-form label{font-size:11px;display:flex;flex-direction:column;gap:6px}.checkout-form input{width:100%;min-height:46px;background:var(--paper);border:1px solid var(--line);border-radius:0;padding:9px;font-size:16px}.checkout-form .button{width:100%;padding-inline:12px;font-size:11px}.checkout-note,.checkout-error{grid-column:1/-1;font-size:10px!important;line-height:1.7;margin:0!important}.checkout-error{color:#a2223b}.checkout-error:empty{display:none}.inquiry-secondary{border:1px solid var(--line);font-size:11px}.catalog-connection-note{padding:13px 16px;background:var(--cream,var(--bone));color:var(--wine);font-size:12px;margin-bottom:20px}.button:disabled{opacity:.6;cursor:wait}
+@media(max-width:420px){.checkout-form{grid-template-columns:65px 1fr;gap:9px}.checkout-form .button{font-size:10px;gap:8px}}
+.product-info h3,.dialog-product-info h2,.dialog-product-info>p,.search-result>span,.category-product-button>span{overflow-wrap:anywhere;min-width:0}

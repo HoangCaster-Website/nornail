@@ -1,0 +1,6 @@
+# Copy to .dev.vars for LOCAL development only (gitignored).
+# Generate the hash with: node password-hash.mjs
+ADMIN_EMAIL=""
+ADMIN_PASSWORD_HASH=""
+STRIPE_SECRET_KEY=""
+STRIPE_WEBHOOK_SECRET=""

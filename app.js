@@ -1,15 +1,24 @@
 'use strict';
 
-const products = [
-  { id: 'w1', name: 'Function Liquid W1', brand: 'maiwell', group: 'liquid', unit: '3,79 liter', tag: 'AKRYL LIQUID', description: 'Klar modelleringsvæske til akrylnegler. En salongstørrelse for det daglige arbeidet med akrylmodellering.', short: 'Klar akryl liquid', specs: [['Type', 'Akryl liquid'], ['Farge', 'Klar'], ['Volum', '3,79 l']] },
-  { id: 'w2', name: 'Function Liquid W2', brand: 'maiwell', group: 'liquid', unit: '3,79 liter', tag: 'AKRYL LIQUID', description: 'Violett modelleringsvæske til akrylnegler. Function Liquid W2 er et alternativ for deg som jobber med akrylmodellering.', short: 'Violett akryl liquid', specs: [['Type', 'Akryl liquid'], ['Farge', 'Violett'], ['Volum', '3,79 l']] },
-  { id: 'urawa', name: 'Super UP200', brand: 'URAWA', group: 'utstyr', unit: 'Negledrill med håndstykke', tag: 'ELEKTRISK UTSTYR', description: 'Elektrisk negledrill med trinnløs hastighetskontroll opptil 25 000 omdreininger per minutt. Med forover- og reversfunksjon til presist arbeid med naturlige og kunstige negler.', short: 'Presisjon til arbeidsbordet', specs: [['Type', 'Elektrisk negledrill'], ['Hastighet', 'Opptil 25 000 o/min'], ['Retning', 'Forover / revers']] },
-  { id: 'novicide', name: 'Novicide konsentrat', brand: 'NOVICIDE', group: 'hygiene', unit: '2 000 ml', tag: 'DESINFEKSJON', description: 'Desinfeksjonskonsentrat til salongverktøy med ikke-porøse overflater. Følg alltid etiketten og produsentens anvisninger for blanding, kontakttid og materialer.', short: 'Desinfeksjon til salongverktøy', specs: [['Type', 'Desinfeksjonskonsentrat'], ['Volum', '2 000 ml'], ['Bruk', 'I henhold til etiketten']], safety: true },
-  { id: 'acetone', name: 'Aceton', brand: 'maiwell', group: 'hygiene', unit: '5 liter', tag: 'RENS & FJERNING', description: 'Aceton i en praktisk 5-liters kanne til salongbruk. Les alltid etiketten og produktinformasjonen før bruk.', short: 'Salongstørrelse, 5 liter', specs: [['Type', 'Aceton'], ['Volum', '5 l'], ['Emballasje', 'Plastkanne']], safety: true },
-  { id: 'alcohol', name: 'Isopropanol 80 %', brand: 'maiwell', group: 'hygiene', unit: '5 liter', tag: 'RENS & FORBEREDELSE', description: 'Klar isopropanol 80 % til forberedelse og rens i neglearbeidet. Følg produktets etikett og anvisninger før bruk.', short: 'Klar isopropanol', specs: [['Type', 'Isopropanol'], ['Konsentrasjon', '80 %'], ['Volum', '5 l']], safety: true },
-  { id: 'buffer', name: 'Neglebuffer 100/180', brand: 'maiwell', group: 'utstyr', unit: 'Oransje / hvit', tag: 'MANIKYRUTSTYR', description: 'Tresidig neglebuffer med korning 100/180 og myk polstring. For utjevning og forberedelse av neglens overflate.', short: 'Form, jevn ut og forbered', specs: [['Type', 'Tresidig buffer'], ['Korning', '100 / 180'], ['Farge', 'Oransje / hvit']] },
-  { id: 'novicide-small', name: 'Novicide konsentrat', brand: 'NOVICIDE', group: 'hygiene', unit: '500 ml', tag: 'DESINFEKSJON', description: 'Desinfeksjonskonsentrat til salongverktøy i en mindre flaske. Følg alltid etiketten og produsentens anvisninger for blanding, kontakttid og materialer.', short: 'En mindre størrelse til salongen', specs: [['Type', 'Desinfeksjonskonsentrat'], ['Volum', '500 ml'], ['Bruk', 'I henhold til etiketten']], safety: true }
-];
+let products = structuredClone(globalThis.nornailsCatalog);
+let commerceSettings = { enabled: false };
+
+Object.assign(nornailsTranslations.messages.nb, {
+  'checkout.quantity': 'Antall', 'checkout.buy': 'Til betaling', 'checkout.test': 'Testbetaling · ingen ekte belastning.',
+  'checkout.pickup': 'Hentes i Sandvika etter avtale.', 'checkout.shipping': 'Frakt i Norge:',
+  'checkout.contact': 'Kontakt oss ved spørsmål om produktet eller bestillingen.', 'checkout.error': 'Betalingen kunne ikke startes. Prøv igjen eller kontakt oss.',
+  'checkout.loading': 'Åpner Stripe …', 'checkout.catalogError': 'Nettkatalogen er midlertidig utilgjengelig. Kontakt oss for oppdatert utvalg og priser.',
+  'products.description': 'Utforsk produktene. Kontakt oss hvis en pris ikke er oppgitt.',
+  'faq.prices.answer': 'Priser vises der de er oppgitt. Kontakt oss for tilgjengelighet og priser på øvrige produkter.'
+});
+Object.assign(nornailsTranslations.messages.en, {
+  'checkout.quantity': 'Quantity', 'checkout.buy': 'Continue to checkout', 'checkout.test': 'Test payment · no real charge.',
+  'checkout.pickup': 'Pickup in Sandvika by arrangement.', 'checkout.shipping': 'Shipping in Norway:',
+  'checkout.contact': 'Contact us with questions about the product or your order.', 'checkout.error': 'Checkout could not be started. Please try again or contact us.',
+  'checkout.loading': 'Opening Stripe …', 'checkout.catalogError': 'The online catalogue is temporarily unavailable. Contact us for current products and prices.',
+  'products.description': 'Explore the products. Contact us if a price is not listed.',
+  'faq.prices.answer': 'Prices are shown where available. Contact us for availability and prices on other products.'
+});
 
 const categories = {
   negler: { number: '01', title: 'Negler', intro: 'Det rette grunnlaget for neglemodelleringen. Se nærmere på våre utvalgte akryl liquids, eller spør oss om andre negleprodukter.', ids: ['w1', 'w2'], subject: 'Produkter til negler' },
@@ -39,7 +48,12 @@ function t(key, values = {}) {
 }
 
 function localProduct(product, language = currentLanguage) {
-  return { ...product, ...nornailsTranslations.products[language]?.[product.id] };
+  const translation = product.translations?.[language] ?? nornailsTranslations.products[language]?.[product.id] ?? {};
+  return { ...product, ...Object.fromEntries(Object.entries(translation).filter(([, value]) => value !== '')) };
+}
+
+function productPrice(product) {
+  return product.priceOre == null ? t('products.price') : new Intl.NumberFormat(currentLanguage === 'nb' ? 'nb-NO' : 'en-GB', { style: 'currency', currency: 'NOK' }).format(product.priceOre / 100);
 }
 
 function localCategory(id) {
@@ -71,8 +85,8 @@ function renderProducts(filter = currentFilter) {
   grid.innerHTML = visible.map(product => `
     <article class="product-card">
       <button class="product-card-button" data-product="${product.id}" aria-label="${escapeHtml(t('products.view', { name: product.brand + ' ' + product.name, unit: product.unit }))}">
-        <div class="product-image"><img src="assets/images/${product.id}.webp" alt="${product.brand} ${product.name}" width="700" height="700" loading="lazy"><span class="product-quickview" aria-hidden="true"><svg class="icon"><use href="#i-search"/></svg></span></div>
-        <div class="product-info"><h3>${product.brand === 'NOVICIDE' ? '' : product.brand + ' '}${product.name}</h3><p class="product-description">${product.unit}</p><p class="product-price">${t('products.price')}</p></div>
+        <div class="product-image"><img src="${escapeHtml(product.image)}" alt="${escapeHtml(product.brand + ' ' + product.name)}" width="700" height="700" loading="lazy" referrerpolicy="no-referrer"><span class="product-quickview" aria-hidden="true"><svg class="icon"><use href="#i-search"/></svg></span></div>
+        <div class="product-info"><h3>${escapeHtml((product.brand === 'NOVICIDE' ? '' : product.brand + ' ') + product.name)}</h3><p class="product-description">${escapeHtml(product.unit)}</p><p class="product-price">${escapeHtml(productPrice(product))}</p></div>
       </button>
     </article>`).join('');
   grid.scrollLeft = 0;
@@ -153,7 +167,8 @@ function renderProductDetails(id) {
   const product = localProduct(source);
   const values = { name: product.brand + ' ' + product.name, unit: product.unit };
   const inquiry = mailLink(t('mail.productSubject', values), t('mail.productBody', values));
-  document.querySelector('#product-dialog-content').innerHTML = `<div class="product-dialog-layout"><div class="dialog-product-image"><img src="assets/images/${product.id}.webp" alt="${product.brand} ${product.name}" width="700" height="700"></div><div class="dialog-product-info"><span class="eyebrow">${product.brand} / ${product.tag}</span><h2 id="dialog-title">${product.name}</h2><span class="product-unit">${product.unit}</span><p>${product.description}</p><dl class="product-specs">${product.specs.map(([label, value]) => `<div><dt>${label}</dt><dd>${value}</dd></div>`).join('')}</dl><a class="button button-dark" href="${escapeHtml(inquiry)}">${t('product.ask')} ${arrow}</a><p class="dialog-disclaimer">${t('product.disclaimer')}${product.safety ? ' ' + t('product.safety') : ''}</p></div></div>`;
+  const checkout = commerceSettings.enabled && product.priceOre != null ? `<form class="checkout-form" data-checkout="${product.id}"><label>${t('checkout.quantity')}<input name="quantity" type="number" min="1" max="20" step="1" value="1" required></label><button class="button button-dark" type="submit">${t('checkout.buy')} ${arrow}</button><p class="checkout-note">${commerceSettings.mode === 'test' ? t('checkout.test') + ' ' : ''}${t(commerceSettings.fulfillment === 'shipping' ? 'checkout.shipping' : 'checkout.pickup')}${commerceSettings.fulfillment === 'shipping' ? ' ' + productPrice({ priceOre: commerceSettings.shippingOre }) : ''}</p><p class="checkout-error" role="alert"></p></form>` : '';
+  document.querySelector('#product-dialog-content').innerHTML = `<div class="product-dialog-layout"><div class="dialog-product-image"><img src="${escapeHtml(product.image)}" alt="${escapeHtml(product.brand + ' ' + product.name)}" width="700" height="700" referrerpolicy="no-referrer"></div><div class="dialog-product-info"><span class="eyebrow">${escapeHtml(product.brand)} / ${escapeHtml(product.tag)}</span><h2 id="dialog-title">${escapeHtml(product.name)}</h2><span class="product-unit">${escapeHtml(product.unit)}</span><p>${escapeHtml(product.description)}</p><p class="detail-price">${escapeHtml(productPrice(product))}</p><dl class="product-specs">${product.specs.map(([label, value]) => `<div><dt>${escapeHtml(label)}</dt><dd>${escapeHtml(value)}</dd></div>`).join('')}</dl>${checkout}<a class="button ${checkout ? 'inquiry-secondary' : 'button-dark'}" href="${escapeHtml(inquiry)}">${t('product.ask')} ${arrow}</a><p class="dialog-disclaimer">${product.priceOre == null ? t('product.disclaimer') : t('checkout.contact')}${product.safety ? ' ' + t('product.safety') : ''}</p></div></div>`;
 }
 
 function openProduct(id) {
@@ -166,9 +181,9 @@ function openProduct(id) {
 function renderCategoryDetails(id) {
   if (!categories[id]) return;
   const category = localCategory(id);
-  const related = products.filter(product => category.ids.includes(product.id)).map(product => localProduct(product));
+  const related = products.filter(product => product.category === id).map(product => localProduct(product));
   const inquiry = mailLink(t('mail.categorySubject', { category: category.subject }), t('mail.categoryBody', { category: category.subject }));
-  document.querySelector('#category-dialog-content').innerHTML = `<span class="eyebrow">${t('category.label')} / ${category.number}</span><h2 id="category-dialog-title">${category.title}</h2><p class="category-intro">${category.intro}</p>${related.length ? `<div class="category-product-list">${related.map(product => `<button class="category-product-button" data-product="${product.id}"><img src="assets/images/${product.id}.webp" alt="" width="70" height="70"><span>${product.brand} ${product.name}<br><small>${product.unit}</small></span>${arrow}</button>`).join('')}</div>` : ''}<a class="button button-dark" href="${escapeHtml(inquiry)}">${t('category.ask', { category: category.title.toLocaleLowerCase(currentLanguage) })} ${arrow}</a><p class="category-note">${t('category.note')}<br>${t('category.call')} <a href="tel:+4746125141">+47 4612 5141</a>.</p>`;
+  document.querySelector('#category-dialog-content').innerHTML = `<span class="eyebrow">${t('category.label')} / ${category.number}</span><h2 id="category-dialog-title">${category.title}</h2><p class="category-intro">${category.intro}</p>${related.length ? `<div class="category-product-list">${related.map(product => `<button class="category-product-button" data-product="${product.id}"><img src="${escapeHtml(product.image)}" alt="" width="70" height="70" referrerpolicy="no-referrer"><span>${escapeHtml(product.brand + ' ' + product.name)}<br><small>${escapeHtml(product.unit)} · ${escapeHtml(productPrice(product))}</small></span>${arrow}</button>`).join('')}</div>` : ''}<a class="button button-dark" href="${escapeHtml(inquiry)}">${t('category.ask', { category: category.title.toLocaleLowerCase(currentLanguage) })} ${arrow}</a><p class="category-note">${t('category.note')}<br>${t('category.call')} <a href="tel:+4746125141">+47 4612 5141</a>.</p>`;
 }
 
 function openCategory(id) {
@@ -182,26 +197,26 @@ function normalize(text) {
   return text.toLocaleLowerCase('nb').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replaceAll('ø', 'o').replaceAll('æ', 'ae').replace(/[^a-z0-9]+/g, ' ').trim();
 }
 
-const searchIndex = new Map(products.map(product => {
+function searchText(product) {
   const content = ['nb', 'en'].flatMap(language => {
     const item = localProduct(product, language);
     return [item.name, item.brand, item.tag, item.unit, item.short, item.description];
   });
   const aliases = { urawa: 'nail drill electric drill neglefres neglefraser utstyr equipment', alcohol: 'alcohol alkohol cleaner rens', acetone: 'remover fjerner', w1: 'monomer', w2: 'monomer', buffer: 'buffing nail file neglefil manicure', novicide: 'disinfectant desinfeksjon hygiene 2l', 'novicide-small': 'disinfectant desinfeksjon hygiene' };
-  return [product.id, normalize([...content, aliases[product.id] ?? ''].join(' '))];
-}));
+  return normalize([...content, aliases[product.id] ?? ''].join(' '));
+}
 
 function renderSearch() {
   const rawQuery = searchInput.value.trim();
   const tokens = normalize(rawQuery).split(/\s+/).filter(Boolean);
-  const found = products.filter(product => tokens.every(token => searchIndex.get(product.id).includes(token))).map(product => localProduct(product));
+  const found = products.filter(product => tokens.every(token => searchText(product).includes(token))).map(product => localProduct(product));
   document.querySelector('#search-count').textContent = rawQuery ? t(found.length === 1 ? 'search.resultOne' : 'search.results', { count: found.length, query: rawQuery }) : t('search.explore', { count: products.length });
   const list = document.querySelector('#search-results');
   if (!found.length) {
     list.innerHTML = `<p class="search-empty">${t('search.empty')} <a href="mailto:Nornails26@gmail.com">${t('search.ask')}</a>.</p>`;
     return;
   }
-  list.innerHTML = found.map(product => `<button class="search-result" data-product="${product.id}"><img src="assets/images/${product.id}.webp" alt="" width="57" height="63"><span>${product.brand} ${product.name}<small>${product.unit} · ${product.short}</small></span>${arrow}</button>`).join('');
+  list.innerHTML = found.map(product => `<button class="search-result" data-product="${product.id}"><img src="${escapeHtml(product.image)}" alt="" width="57" height="63" referrerpolicy="no-referrer"><span>${escapeHtml(product.brand + ' ' + product.name)}<small>${escapeHtml(product.unit)} · ${escapeHtml(productPrice(product))}</small></span>${arrow}</button>`).join('');
 }
 
 function openSearch(query = '') {
@@ -319,7 +334,59 @@ window.addEventListener('resize', updateRailButtons, { passive: true });
 const header = document.querySelector('.site-header');
 window.addEventListener('scroll', () => header.classList.toggle('scrolled', window.scrollY > 40), { passive: true });
 applyLanguage(currentLanguage, { persist: false, updateUrl: false });
+loadStoreCatalogue();
 document.querySelector('#year').textContent = new Date().getFullYear();
+
+async function loadStoreCatalogue() {
+  const api = globalThis.nornailsConfig?.apiUrl?.replace(/\/$/, '');
+  if (!api) return;
+  try {
+    const response = await fetch(api + '/api/catalog', { signal: AbortSignal.timeout(12000), cache: 'no-store' });
+    if (!response.ok) throw new Error('Catalogue unavailable');
+    const data = await response.json();
+    products = data.products.map(item => globalThis.nornailsCommerce.product(item));
+    commerceSettings = data.checkout;
+    document.querySelector('.spotlight').hidden = !products.some(product => product.id === 'urawa');
+    renderProducts(); renderSearch();
+    if (productDialog.open) {
+      if (products.some(product => product.id === productDialog.dataset.productId)) renderProductDetails(productDialog.dataset.productId);
+      else productDialog.close();
+    }
+    if (categoryDialog.open) renderCategoryDetails(categoryDialog.dataset.categoryId);
+  } catch {
+    commerceSettings = { enabled: false };
+    const notice = document.createElement('p');
+    notice.className = 'catalog-connection-note';
+    notice.setAttribute('role', 'status');
+    notice.dataset.i18n = 'checkout.catalogError';
+    notice.textContent = t('checkout.catalogError');
+    grid.before(notice);
+  }
+}
+
+document.addEventListener('submit', async event => {
+  const form = event.target.closest('[data-checkout]');
+  if (!form) return;
+  event.preventDefault();
+  const button = form.querySelector('button');
+  if (button.disabled) return;
+  const quantity = Number(form.elements.quantity.value);
+  const error = form.querySelector('.checkout-error');
+  if (!Number.isInteger(quantity) || quantity < 1 || quantity > 20) { form.reportValidity(); return; }
+  const signature = `${form.dataset.checkout}:${quantity}:${currentLanguage}`;
+  if (form.dataset.signature !== signature) { form.dataset.requestId = crypto.randomUUID(); form.dataset.signature = signature; }
+  button.disabled = true;
+  button.textContent = t('checkout.loading');
+  error.textContent = '';
+  try {
+    const response = await fetch(globalThis.nornailsConfig.apiUrl.replace(/\/$/, '') + '/api/checkout', { method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: AbortSignal.timeout(25000), body: JSON.stringify({ items: [{ id: form.dataset.checkout, quantity }], language: currentLanguage, requestId: form.dataset.requestId }) });
+    const result = await response.json();
+    if (!response.ok) { if (response.status < 500) form.dataset.signature = ''; throw new Error('Checkout unavailable'); }
+    const target = new URL(result.url);
+    if (target.protocol !== 'https:' || target.hostname !== 'checkout.stripe.com') throw new Error('Invalid checkout URL');
+    window.location.assign(target.href);
+  } catch { error.textContent = t('checkout.error'); button.disabled = false; button.innerHTML = `${t('checkout.buy')} ${arrow}`; }
+});
 
 if ('IntersectionObserver' in window && !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
   const observer = new IntersectionObserver(entries => {

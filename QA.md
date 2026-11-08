@@ -38,3 +38,15 @@ Bản cập nhật dùng nền trắng và taupe, ảnh manicure thật, chữ L
 - Không ảnh lỗi, lỗi JavaScript hoặc tràn ngang trong cả hai ngôn ngữ.
 
 Đã xem ảnh chụp desktop và mobile của bản tiếng Anh. Trên mobile, ô nhập dùng font 16 px khi gõ để tránh trình duyệt phóng to khi focus. Chưa gửi email hay xuất bản trong lần cập nhật này.
+
+
+## Admin & Stripe preparation — 2026-11-07
+
+- Added root `admin.html`, product/price editor, bilingual product fields, search/category/visibility filters, safe image URLs, local draft persistence and JSON export/import. No prices or customer data were invented.
+- Added a separate Cloudflare Worker/D1 API: server-side admin login, expiring/revocable sessions, persistent login throttling, CORS allowlist, validated product CRUD with optimistic versions, settings, Stripe Checkout and signed/idempotent webhook handling.
+- All 9 API integration tests pass using real SQLite and Web Crypto, with Stripe HTTP responses mocked. Checked authorization, expiry/logout, rate limits, CORS, stale edits, validation, integer prices, server-controlled amounts, disabled checkout, signatures/replay/mode/amount checks and payment status.
+- Applied both migrations to local D1 successfully. Tested actual Worker runtime login, price updates and hidden products from the admin through to the storefront in NO/EN. The local fixture was restored after testing.
+- Browser checks at 1440, 1024, 768, 390 and 320px: no horizontal overflow or JavaScript errors. Inspected desktop/mobile screenshots. Checked draft CRUD/reload, empty/invalid price, filtering, export, unsaved-change confirmation and the original bilingual storefront search.
+- iPhone 13 touch emulation: edited price, saved draft payment settings with checkout disabled, checked 16px inputs, mocked checkout request, escaped product HTML, pending-to-paid return polling and blocked-storage errors.
+- Wrangler production bundle dry-run passes. No cloud resources were created, no deployment or Git push was performed, and no real Stripe payment was attempted.
+- Checkout is off in the shipped configuration. Customer/cloud credentials and actual Stripe end-to-end testing are required before activation. Setup instructions: `backend/README.md`.
