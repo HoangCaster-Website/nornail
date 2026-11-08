@@ -6,4 +6,4 @@
 @media(max-width:700px){.review-card{padding:24px}.review-card h2{font-size:32px}.review-line{gap:14px}.review-card .button{font-size:12px}}
 @media(max-width:360px){.review-card{padding:22px 17px}.review-line{grid-template-columns:52px minmax(0,1fr);gap:11px}.review-line>img{width:52px;height:75px}.review-line h3{font-size:12px}.review-quantity{width:106px}.review-quantity button{width:30px}.review-line-actions{gap:8px}.review-card .invoice-totals .grand-total{font-size:18px}.review-card .invoice-totals dd{max-width:145px}.review-card .button{font-size:11px}}
 @media print{.review-card,.review-line-actions,#review-back{display:none!important}#cart-checkout-layout{display:block}.review-line{break-inside:avoid}}
-.review-option{flex-direction:row}.review-option input[type=radio]{width:16px;height:16px;min-height:16px;padding:0;flex:0 0 16px;align-self:flex-start}
+.review-option{flex-direction:row}.review-option input[type=checkbox]{width:16px;height:16px;min-height:16px;padding:0;flex:0 0 16px;align-self:flex-start}.review-delivery-help{font-size:10px;color:var(--muted);line-height:1.8;margin:0 0 10px}

@@ -94,3 +94,10 @@ Bản cập nhật dùng nền trắng và taupe, ảnh manicure thật, chữ L
 - A server-side expected-total guard rejects changed prices before creating any order/session. Browser verification checks the refreshed total while retaining the buyer's delivery choice. API deployed as `nornails-api` version 6; all existing tables/functions remain untouched.
 - All 30 automated checks pass, including cart data validation, storage failures, retry/settlement/reorder behavior, multi-item amounts and stale-price rejection.
 - Browser QA passed on 1440/768/390/320px in NO/EN, plus iPhone 13 touch controls. Inspected cart and review screenshots, corrected small-screen spacing/radio controls, and confirmed no JS errors/document overflow. Existing order/payment polling, paid-only webhook confirmation and print behavior are retained.
+
+## Clear delivery selection — 2026-11-08
+
+- Delivery choices can now be toggled off by selecting the active choice again. A single-choice checkbox group keeps at most one delivery method selected and preserves keyboard focus after updates. NO/EN helper text explains how to clear a choice.
+- Clearing the choice resets the delivery/total prompts and disables payment. Choosing another method removes the previous selection; required delivery remains enforced by checkout state and the server.
+- Browser verification passed with label clicks, keyboard Space, switching between pickup/shipping, and clearing a selection on iPhone 13 touch. Existing multi-item/retry/QR/paid-state scenarios still pass. Checked NO/EN and 1440/768/390/320px layouts without JS errors or overflow.
+- The owner deferred the email-login/notification request. No customer account, email dispatch, Auth setting or database change was made in this update.

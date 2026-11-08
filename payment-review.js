@@ -18,6 +18,8 @@ globalThis.nornailsCheckoutReview = { start() {
   };
   messages.nb.large = 'Bestillingen er for stor for nettbetaling. Kontakt oss for et tilbud.';
   messages.en.large = 'This order exceeds the online payment limit. Contact us for a quote.';
+  messages.nb.deliveryHelp = 'Velg ett alternativ. Trykk på det valgte alternativet igjen for å fjerne valget.';
+  messages.en.deliveryHelp = 'Choose one option. Select it again to clear your choice.';
   const copy = () => messages[language];
   const money = value => new Intl.NumberFormat(language === 'en' ? 'en-GB' : 'nb-NO', { style:'currency',currency:'NOK' }).format(value / 100);
   const local = product => ({ ...product, ...(language === 'en' ? Object.fromEntries(Object.entries(product.translations?.en || {}).filter(([,v]) => v !== '')) : {}) });
@@ -47,7 +49,8 @@ globalThis.nornailsCheckoutReview = { start() {
     if (loaded && checkout.pickupEnabled) options.push({ value:'pickup', label:c.pickup, detail:c.pickupBody });
     if (loaded && checkout.shippingEnabled && Number.isInteger(checkout.shippingOre)) options.push({ value:'shipping', label:c.shipping + ' · ' + money(checkout.shippingOre), detail:c.shippingBody });
     if (loaded && !options.some(option => option.value === fulfillment)) fulfillment = '';
-    $('#review-options').innerHTML = options.map(option => `<label class="review-option"><input type="radio" name="fulfillment" value="${option.value}" ${option.value === fulfillment ? 'checked' : ''} ${busy ? 'disabled' : ''} required><span><strong>${escape(option.label)}</strong><small>${escape(option.detail)}</small></span></label>`).join('');
+    $('#review-options').innerHTML = options.map(option => `<label class="review-option"><input type="checkbox" name="fulfillment" value="${option.value}" ${option.value === fulfillment ? 'checked' : ''} ${busy ? 'disabled' : ''}><span><strong>${escape(option.label)}</strong><small>${escape(option.detail)}</small></span></label>`).join('');
+    $('#review-delivery-help').textContent = c.deliveryHelp;
     $('#review-delivery').hidden = empty || !options.length;
     $('#review-subtotal').textContent = order.subtotal === null ? c.unpriced : money(order.subtotal);
     $('#review-shipping').textContent = !fulfillment ? c.choose : money(fulfillment === 'shipping' ? checkout.shippingOre : 0);
@@ -100,7 +103,13 @@ globalThis.nornailsCheckoutReview = { start() {
     edit(input.dataset.reviewQuantity, Number(input.value));
   });
   $('#review-items').addEventListener('input', () => { $('#review-pay').disabled = busy || !canPay(); });
-  $('#review-form').addEventListener('change', event => { if (event.target.name === 'fulfillment') { fulfillment = event.target.value; failure = ''; render(); } });
+  $('#review-form').addEventListener('change', event => {
+    if (event.target.name !== 'fulfillment') return;
+    const value = event.target.value;
+    fulfillment = event.target.checked ? value : '';
+    failure = ''; render();
+    $(`[name="fulfillment"][value="${value}"]`)?.focus();
+  });
   $('#review-retry').addEventListener('click', load);
   $('#review-form').addEventListener('submit', async event => {
     event.preventDefault();
