@@ -70,7 +70,7 @@
   }
   function renderProducts() {
     const visible = filteredProducts();
-    $('#product-rows').innerHTML = visible.map(product => `<tr><td><div class="product-cell"><img class="product-thumb" src="${escape(product.image)}" alt="" width="62" height="67" loading="lazy" referrerpolicy="no-referrer"><div><button class="product-name" data-edit="${escape(product.id)}">${escape(product.brand)} ${escape(product.name)}</button><span class="product-unit">${escape(product.unit || product.id)}</span></div></div></td><td><span class="category-tag">${escape(categoryNames[product.category])}</span></td><td><button class="price-button ${product.priceOre === null ? 'unset' : ''}" data-price="${escape(product.id)}" aria-label="Edit price for ${escape(product.name)}">${product.priceOre === null ? '＋ Add price' : money(product.priceOre)}</button></td><td><span class="visibility-tag ${product.active ? '' : 'hidden-tag'}">${product.active ? 'Visible' : 'Hidden'}</span></td><td><button class="edit-button" data-edit="${escape(product.id)}" aria-label="Edit ${escape(product.name)}">Edit ↗</button></td></tr>`).join('');
+    $('#product-rows').innerHTML = visible.map(product => `<tr><td><div class="product-cell"><img class="product-thumb" src="${escape(product.image)}" alt="" width="62" height="67" loading="lazy" referrerpolicy="no-referrer"><div><button class="product-name" data-admin-raw data-edit="${escape(product.id)}">${escape(product.brand)} ${escape(product.name)}</button><span class="product-unit" data-admin-raw>${escape(product.unit || product.id)}</span></div></div></td><td><span class="category-tag">${escape(categoryNames[product.category])}</span></td><td><button class="price-button ${product.priceOre === null ? 'unset' : ''}" data-price="${escape(product.id)}" aria-label="Edit price for ${escape(product.name)}">${product.priceOre === null ? '＋ Add price' : money(product.priceOre)}</button></td><td><span class="visibility-tag ${product.active ? '' : 'hidden-tag'}">${product.active ? 'Visible' : 'Hidden'}</span></td><td><button class="edit-button" data-edit="${escape(product.id)}" aria-label="Edit ${escape(product.name)}">Edit ↗</button></td></tr>`).join('');
     $('#product-empty').hidden = visible.length !== 0;
     $('#table-count').textContent = `${visible.length} of ${products.length} products`;
     $('#stat-total').textContent = products.length;
@@ -96,6 +96,7 @@
     $('#key-status').textContent = stripe.secretConfigured ? 'Configured on server' : 'Not configured';
     $('#webhook-status').textContent = stripe.webhookConfigured ? 'Configured on server' : 'Not configured';
     $('#webhook-url').textContent = stripe.webhookUrl || 'Connect the store API first';
+    $('#webhook-secret-name').textContent = stripe.connect?.enabled ? 'STRIPE_CONNECT_WEBHOOK_SECRET' : 'STRIPE_WEBHOOK_SECRET';
     $('#test-stripe').disabled = !remote || !stripe.secretConfigured;
     const form = $('#payment-settings');
     form.elements.enabled.checked = checkoutSettings.enabled;
@@ -106,7 +107,56 @@
     form.elements.termsUrl.value = checkoutSettings.termsUrl;
     form.elements.termsConfirmed.checked = checkoutSettings.termsConfirmed;
     $('#shipping-field').hidden = checkoutSettings.fulfillment !== 'shipping';
+    renderConnect();
   }
+  const setupStatuses = { not_connected: 'Not started', invited: 'Not started', success: 'Successful', pending: 'Awaiting Stripe review', needs_information: 'More information needed', failed: 'Setup failed', cancelled: 'Cancelled', disconnected: 'Disconnected' };
+  function renderConnect() {
+    const connection = stripe.connect;
+    $('#merchant-status').textContent = setupStatuses[connection?.status] || 'Not started';
+    $('#merchant-status').classList.toggle('connected', connection?.status === 'success');
+    $('#create-setup-link').disabled = !remote || !connection?.configured;
+    $('#refresh-setup').disabled = !remote || !connection?.configured;
+    $('#revoke-setup-links').disabled = !remote || !connection?.configured;
+    $('#setup-link-help').textContent = !remote ? 'Connect the store API and configure Stripe Connect before creating a real customer link.' : !connection?.configured ? 'Stripe Connect is not configured on this API yet.' : 'Share the setup link with the store owner. A newly created link replaces previous setup invitations.';
+  }
+  $('#create-setup-link').addEventListener('click', async () => {
+    const button = $('#create-setup-link');
+    if (button.disabled) return;
+    if ($('#setup-link-url').value && !await confirmAction('Replace the existing setup link?', 'The previous invitation will stop working.', 'Create new link')) return;
+    button.disabled = true;
+    button.textContent = 'Creating link…';
+    $('#setup-link-feedback').textContent = '';
+    try {
+      const result = await request('/api/admin/connect/invites', { method: 'POST', body: JSON.stringify({ hours: Number($('#setup-expiry').value), language: globalThis.nornailsAdminI18n.language }) });
+      $('#setup-link-url').value = result.url;
+      $('#setup-link-expiry').textContent = 'Link expires: ' + new Date(result.expiresAt).toLocaleString(globalThis.nornailsAdminI18n.language === 'vi' ? 'vi-VN' : 'en-GB');
+      $('#setup-link-result').hidden = false;
+      $('#setup-link-feedback').textContent = result.mode === 'test' ? 'Test setup · no real payments are enabled by this flow.' : 'Share the setup link with the store owner. A newly created link replaces previous setup invitations.';
+    } catch (error) { $('#setup-link-feedback').textContent = error.message; }
+    finally { button.textContent = 'Create setup link ↗'; renderConnect(); }
+  });
+  $('#copy-setup-link').addEventListener('click', async () => {
+    try { await navigator.clipboard.writeText($('#setup-link-url').value); notify('Copied setup link.'); }
+    catch { $('#setup-link-url').focus(); $('#setup-link-url').select(); notify('Could not copy automatically. Select and copy the link below.'); }
+  });
+  $('#refresh-setup').addEventListener('click', async () => {
+    $('#refresh-setup').disabled = true;
+    try { stripe.connect = await request('/api/admin/connect/refresh', { method: 'POST' }); await loadState(); }
+    catch (error) { $('#setup-link-feedback').textContent = error.message; }
+    finally { renderConnect(); }
+  });
+  $('#revoke-setup-links').addEventListener('click', async () => {
+    if (!await confirmAction('Revoke all setup links?', 'Existing setup invitations and their return sessions will stop working. This does not disconnect the Stripe merchant.', 'Revoke links')) return;
+    $('#revoke-setup-links').disabled = true;
+    try {
+      await request('/api/admin/connect/revoke', { method: 'POST' });
+      $('#setup-link-result').hidden = true;
+      $('#setup-link-url').value = '';
+      notify('Setup links revoked. The Stripe account itself is unchanged.');
+    } catch (error) { $('#setup-link-feedback').textContent = error.message; }
+    finally { renderConnect(); }
+  });
+
   function renderOrders() {
     if (!orders.length) {
       $('#orders-content').innerHTML = `<div class="orders-empty"><p class="eyebrow">${remote ? 'NO ORDERS YET' : 'READY WHEN YOU ARE'}</p><h2>Your orders will arrive here.</h2><p>${remote ? 'Completed checkouts appear after Stripe sends a verified payment event. No sample orders are shown.' : 'Connect your store API and configure Stripe to receive orders. No sample sales or customer data is used.'}</p></div>`;
@@ -303,6 +353,9 @@
     catch (error) { notify(error.message + ' The local session has been cleared.'); }
     finally {
       remote = false; token = ''; apiUrl = ''; products = readDraft(); checkoutSettings = readSettings(); stripe = { mode: 'unconfigured', ready: false }; orders = [];
+      $('#setup-link-url').value = '';
+      $('#setup-link-result').hidden = true;
+      $('#setup-link-feedback').textContent = '';
       $('#logout').disabled = false;
       $('#connect-open').innerHTML = 'Connect store ↗';
       renderAll();

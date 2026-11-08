@@ -50,3 +50,14 @@ Bản cập nhật dùng nền trắng và taupe, ảnh manicure thật, chữ L
 - iPhone 13 touch emulation: edited price, saved draft payment settings with checkout disabled, checked 16px inputs, mocked checkout request, escaped product HTML, pending-to-paid return polling and blocked-storage errors.
 - Wrangler production bundle dry-run passes. No cloud resources were created, no deployment or Git push was performed, and no real Stripe payment was attempted.
 - Checkout is off in the shipped configuration. Customer/cloud credentials and actual Stripe end-to-end testing are required before activation. Setup instructions: `backend/README.md`.
+
+
+## Vietnamese admin & customer Stripe setup links — 2026-11-08
+
+- Added VI/EN admin UI (Vietnamese default), persisted language selection, translated labels, notifications, errors and confirmation dialogs. Switching language preserves unsaved product values. Product NO/EN content stays independent.
+- Added private expiring setup invitations, copy/revoke controls, and `stripe-setup.html` for the store owner. OAuth state is one-use and bound to a first-party HttpOnly/Secure/SameSite=Lax cookie; the authenticated holder can continue Stripe-hosted onboarding. Account capabilities/requirements determine the displayed result; return URLs never imply success.
+- All 17 API tests pass: existing checkout/CRUD regression plus invitation authentication/expiry/replacement/revocation, OAuth cancellation/replay/mode/scope checks, account verification, authenticated onboarding, direct merchant charges and cross-account/deauthorization webhook guards.
+- Browser integration used the actual Worker handler, Web Crypto and SQLite through Playwright routes, with Stripe HTTP/authorization/onboarding explicitly mocked. Redirect responses were shimmed into document navigations so browser routing could intercept every provider step. No real Stripe account or payment was used.
+- Verified VI/EN at 1440/1024/768/390/320px for every admin section; checked saved fields, validation text, new invitation generation, OAuth cookie/state, needs-information/pending/success/failure/revoked states, administrator status refresh, replacement links opened in the same tab, and no automatic checkout enablement.
+- iPhone 13 touch check passed for product editing, 16px inputs, Vietnamese notifications and language persistence. No JS errors or horizontal overflow in the completed browser run. Inspected desktop/mobile screenshots; added a complete Vietnamese serif fallback and collapsed advanced credentials.
+- Migration `0003_connect.sql` applies successfully to local D1; Worker bundle dry-run passes. A deployed API, platform Stripe Connect client ID/key, correct OAuth redirect URI and connected-account webhook secret are still required before real customer links can be created. Root API configuration remains empty and real checkout remains off.

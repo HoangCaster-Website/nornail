@@ -14,3 +14,25 @@
 .edit-button{white-space:nowrap}
 @media(max-width:700px){.catalog-controls .search-box input{font-size:16px;min-height:42px;height:42px}.catalog-filters select{max-width:156px}}
 @media(max-width:360px){.catalog-filters{flex-direction:column}.catalog-filters .search-box{width:100%}.catalog-filters select{max-width:none;width:100%}}
+
+/* Vietnamese/English controls and merchant self-service setup. */
+.admin-languages{display:flex;align-items:center;border:1px solid var(--line);border-radius:4px;overflow:hidden;flex:none}
+.admin-languages button{background:var(--paper);font-size:11px;padding:7px 10px;min-height:34px}
+.admin-languages button[aria-pressed=true]{background:var(--wine);color:white}
+.connect-onboarding{display:grid;grid-template-columns:1.1fr 1fr;gap:38px;border-top:3px solid var(--wine);padding:30px;margin-bottom:28px}
+.onboarding-intro>.eyebrow{color:var(--wine);margin-bottom:15px}.onboarding-intro h2{font-size:37px;max-width:430px}
+.onboarding-intro>p:not(.eyebrow){font-size:12px;line-height:1.9;color:var(--muted);margin-top:18px;max-width:430px}
+.setup-flow{list-style:none;counter-reset:onboard;padding:0;margin:26px 0 0;display:flex;gap:18px;font-size:10px;color:var(--muted)}
+.setup-flow li{flex:1;counter-increment:onboard}.setup-flow li:before{content:'0' counter(onboard);display:block;color:var(--wine);font-size:14px;border-top:1px solid var(--line);padding-top:10px;margin-bottom:8px}
+.onboarding-state{display:flex;align-items:center;justify-content:space-between;gap:12px;font-size:11px}.onboarding-state .pill{white-space:normal;text-align:center}
+.onboarding-actions>.button{width:100%;margin-top:15px}.onboarding-actions .helper{font-size:11px;margin:12px 0;line-height:1.8}
+.onboarding-tools{display:flex;flex-wrap:wrap;gap:8px 25px;border-top:1px solid var(--line);padding-top:12px;margin-top:18px}
+#setup-link-result{padding:14px 0 0;border-top:1px solid var(--line);margin-top:18px}#setup-link-result label{margin:0 0 12px}#setup-link-url{font-size:12px}
+@media(max-width:1050px){.connect-onboarding{gap:25px;grid-template-columns:1fr}.onboarding-intro h2,.onboarding-intro>p:not(.eyebrow){max-width:none}.setup-flow{max-width:500px}.top-actions{gap:9px}}
+@media(max-width:700px){.topbar{gap:12px}.top-actions{flex-wrap:wrap}.admin-languages button{padding:7px 9px;min-height:34px}.connect-onboarding{padding:22px;gap:26px}.onboarding-intro h2{font-size:33px}.onboarding-intro>p:not(.eyebrow){font-size:12px}.onboarding-state{align-items:start}.onboarding-tools .text-button{font-size:11px;white-space:normal;text-align:left}.onboarding-actions .button{font-size:12px;white-space:normal}#setup-link-url{font-size:16px}.page-heading .heading-actions{flex-wrap:wrap}.sidebar .nav-item{min-width:0;overflow-wrap:anywhere}.button{white-space:normal}.heading-actions .button{gap:8px}.editor-footer>div{flex-wrap:wrap}.editor-footer .button{flex:1}}
+/* Use a complete Vietnamese serif instead of mixing unsupported display glyphs. */
+html[lang=vi]{--serif:'Times New Roman',Georgia,serif}
+.technical-panel>summary{font:400 27px/1.25 var(--serif);cursor:pointer;list-style:none;padding-right:24px;position:relative}
+.technical-panel>summary::-webkit-details-marker{display:none}.technical-panel>summary:after{content:'+';position:absolute;right:0;top:0;font:22px var(--sans)}
+.technical-panel[open]>summary:after{content:'−'}.technical-panel[open]>summary{margin-bottom:18px}
+.technical-panel>p{font-size:12px;color:var(--muted);line-height:1.8}

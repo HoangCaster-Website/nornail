@@ -1,0 +1,16 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex,nofollow"><meta name="referrer" content="strict-origin">
+  <title>Nornails — Stripe setup</title><link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="admin.css"><link rel="stylesheet" href="stripe-setup.css">
+  <script src="site-config.js" defer></script><script src="admin-i18n.js" defer></script><script src="stripe-setup.js" defer></script>
+</head>
+<body class="stripe-setup-page">
+  <header class="setup-header"><a class="wordmark" href="index.html">NORNAILS<span>PROFESSIONAL NAIL SUPPLY</span></a><div class="admin-languages" role="group" aria-label="Language"><button type="button" data-admin-language="vi" aria-label="Tiếng Việt" aria-pressed="true">VI</button><button type="button" data-admin-language="en" aria-label="English" aria-pressed="false">EN</button></div></header>
+  <main class="setup-layout"><section class="setup-welcome"><p class="eyebrow">PAYMENT SETUP</p><h1>Set up payments for Nornails.</h1><p>Sign in securely with Stripe, complete your business details there, then return here to check the result.</p><ol class="setup-flow"><li>Continue with Stripe</li><li>Complete your details</li><li>See the result</li></ol><div class="setup-privacy"><span aria-hidden="true">◈</span><p>Your business, identity and bank details stay with Stripe. No Stripe password or secret key is requested on this page.</p></div></section>
+    <section class="setup-status-card" aria-labelledby="setup-title"><span class="stripe-logo">stripe</span><span class="setup-result-icon" id="setup-result-icon" aria-hidden="true">↗</span><h2 id="setup-title">Checking Stripe…</h2><p id="setup-description" role="status" aria-live="polite"></p><p id="setup-test-note" class="setup-test-note" hidden>Test setup · no real payments are enabled by this flow.</p><p id="setup-refresh-note" class="helper" hidden>Your onboarding link expired. Continue to create a fresh Stripe link.</p><button class="button" id="setup-continue" hidden>Continue with Stripe <span aria-hidden="true">↗</span></button><button class="button secondary" id="setup-recheck" hidden>Check status again</button><p id="setup-confirmation" class="helper" hidden>Setup completed. Checkout still follows the store administrator’s payment settings.</p><p class="setup-mobile-privacy">Your business, identity and bank details stay with Stripe. No Stripe password or secret key is requested on this page.</p><a class="setup-back" href="index.html">Back to Nornails <span aria-hidden="true">→</span></a></section>
+  </main><footer class="setup-footer">NORNAILS · SANDVIKA, NORWAY</footer>
+</body>
+</html>

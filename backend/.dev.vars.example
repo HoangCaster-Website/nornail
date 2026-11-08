@@ -4,3 +4,7 @@ ADMIN_EMAIL=""
 ADMIN_PASSWORD_HASH=""
 STRIPE_SECRET_KEY=""
 STRIPE_WEBHOOK_SECRET=""
+
+# Customer self-service setup via Stripe Connect (platform credentials).
+STRIPE_CONNECT_CLIENT_ID=""
+STRIPE_CONNECT_WEBHOOK_SECRET=""

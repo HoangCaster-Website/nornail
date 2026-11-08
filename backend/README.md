@@ -6,7 +6,7 @@ The storefront and `admin.html` stay on **GitHub Pages**. The separate API uses 
 
 Open `/admin.html` through the same static HTTP server used for the storefront. You can add, edit, hide and delete products, edit Norwegian/English copy and NOK prices, and export/import a catalogue JSON file. Drafts persist in the current browser only. They do **not** change the public storefront. A blank price means contact for price. The checkout switch cannot be enabled in local draft mode.
 
-The admin interface is in English; product content supports both Norwegian and English. Images accept existing `assets/images/` paths or public HTTPS image URLs. Uploading image files to cloud storage is not included.
+The admin interface supports Vietnamese/English (VI/EN), defaults to Vietnamese, and remembers the selection. Product content supports Norwegian/English independently of the admin language. Images accept existing `assets/images/` paths or public HTTPS image URLs. Uploading image files to cloud storage is not included.
 
 ## Deploy the API when accounts are available
 
@@ -47,7 +47,34 @@ globalThis.nornailsConfig = Object.freeze({ apiUrl: 'https://nornails-api.YOUR-S
 
 Push the static files to GitHub Pages. Open `/admin.html`, choose **Connect store**, and enter the API URL and configured credentials. The connected admin loads server data. Product/price changes are saved in D1 and appear on subsequent storefront loads in both languages. Browser drafts remain separate and can be exported before connecting. The bearer session is held in memory, expires after two hours, and is invalidated by sign-out. Reloading requires signing in again. No password or Stripe key is saved in browser storage.
 
-## Stripe setup — start in test mode
+## Customer setup by link — Stripe Connect
+
+The Payments screen now has **Create setup link / Tạo link thiết lập**. The owner opens the private invitation, authorizes the website through Stripe Connect OAuth, and completes any remaining business/identity/bank requirements on Stripe-hosted onboarding. The return page reports **successful**, **needs information**, **pending Stripe review**, **cancelled**, **failed** or **disconnected** based on a server-side Stripe account check. Returning from Stripe alone never means success. No Stripe password, bank details, identity documents or customer secret keys are collected by the website.
+
+One-time developer/platform setup is still necessary. GitHub Pages alone cannot generate authenticated invitations, exchange OAuth codes or verify account status. No live Connect account has been registered or tested during implementation.
+
+1. Deploy the API/database as described above, including migration `0003_connect.sql`, and set the public API origin in root `site-config.js`. The invitation page trusts only that configured API, never an API URL supplied in a shared link.
+2. Enable/register **Stripe Connect** for the website operator/platform in Stripe Dashboard. This integration uses OAuth to authorize an independently owned account; customers may choose an existing Stripe account or create one in Stripe’s authorization flow. Use the test Connect **client ID** (`ca_…`) and the matching **platform test secret key**, not a customer's key. Configure your platform branding and supported account countries. The integration does not create legacy Express/Custom accounts, charge a platform fee or automatically change the checkout switch.
+3. Register the exact OAuth redirect URI `https://YOUR-API/api/connect/callback` in the Connect application settings. It must match the actual API origin. A mismatched URI/client ID or test/live mode causes setup to fail.
+
+```sh
+npx wrangler secret put STRIPE_CONNECT_CLIENT_ID
+npx wrangler secret put STRIPE_SECRET_KEY
+npx wrangler secret put STRIPE_CONNECT_WEBHOOK_SECRET
+```
+
+4. The Connect webhook destination is `https://YOUR-API/api/stripe/webhook`, configured for **events on connected accounts**. Subscribe to the four checkout events listed below plus `account.updated` and `account.application.deauthorized`. Store this endpoint's `whsec_…` value as `STRIPE_CONNECT_WEBHOOK_SECRET`. The older `STRIPE_WEBHOOK_SECRET` is for direct-account events only; connected-account events require the Connect signing secret.
+5. In admin, sign in to the API, open Payments, choose a link lifetime (24 hours, 3 days, or 7 days), and create/copy the invitation. It is a URL on your own site with a random credential in the fragment, not a raw Stripe Account Link. Creation invalidates older invitations and holder sessions in the same Stripe mode. Only the hash is stored; the URL is displayed once in the current admin session. **Revoke setup links** invalidates invitations without disconnecting an existing merchant.
+6. Send the invitation to the actual store owner yourself. No email/message is sent by the implementation. The owner clicks **Continue with Stripe**, authorizes the connection, and returns to the result page. Stripe OAuth state is one-use, expires after 10 minutes, and is tied to an HttpOnly, Secure, SameSite=Lax cookie on the API. Use the same browser throughout. After OAuth, only the authenticated holder session can create the short-lived Stripe-hosted Account Link. Raw Account Link URLs are never exposed as shareable invitations. Expired onboarding sessions can be resumed from the result page.
+7. The server verifies `details_submitted`, charges/payouts enablement, outstanding/past-due requirements and pending verification. **Pending review is not reported as success or failure.** OAuth errors, cancellation, revocation, expired invitations and network errors have separate states. Admin can refresh the merchant status. The first authorized merchant is fixed per test/live mode; later invitations cannot silently replace it with a different account.
+8. Only after setup succeeds, confirm prices/tax/shipping/terms, enable test checkout, and test a full payment and webhook. Checkout is created as a **direct charge on the authorized merchant account** using `Stripe-Account`; no payment is silently routed to the platform as a fallback. Orders store the connected account ID, and a different account's webhook cannot mark them paid. Checkout retrieves the current Stripe account before creating each payment. A deauthorization event disables checkout readiness and delayed events cannot reconnect the account.
+9. To go live, turn checkout off, configure matching live platform key/client ID and the live Connect webhook secret, create a new **live** invitation, complete the owner’s setup, and verify live configuration before enabling checkout. Test and live merchant records/invitations are separate. Local SQLite/HTTP mocks verify the code path; actual Stripe Connect and bank/identity verification need the operator/client’s real accounts and a deployed HTTPS API.
+
+New API endpoints: authenticated admin `POST /api/admin/connect/invites`, `POST /api/admin/connect/refresh`, `POST /api/admin/connect/revoke`; invitation-scoped `GET /api/connect/status`; top-level form POSTs `/api/connect/start`, `/api/connect/onboard`; OAuth callback `GET /api/connect/callback`. Invitation credentials grant no access to product management or customer orders. The portal never accepts a `success=1` flag as proof of completion. Its `strict-origin` referrer policy keeps invitation credentials in fragments while allowing the API to verify the origin of top-level form POSTs.
+
+References: [Connect OAuth](https://docs.stripe.com/connect/oauth-reference), [Stripe-hosted onboarding and return states](https://docs.stripe.com/connect/hosted-onboarding), [direct charges](https://docs.stripe.com/connect/direct-charges).
+
+## Direct Stripe setup — optional existing flow
 
 1. Obtain a test secret key from the client's Stripe account. Configure public business details and a terms-of-service URL in Stripe's Dashboard. Set the key **as a Worker secret**, never in GitHub or `site-config.js`:
 
@@ -98,6 +125,6 @@ Set the emitted signing secret in local `.dev.vars`, restart the Worker, and use
 npm test
 ```
 
-The integration tests use an in-memory SQLite D1 adapter, real Web Crypto signatures and mocked Stripe HTTP responses. They cover authentication, session expiry, rate limits, CORS, CRUD, concurrent edits, authoritative prices, disabled checkout, Stripe request encoding, signed webhook verification/idempotency and payment status. Real Stripe end-to-end testing and production deployment remain pending customer/cloud credentials.
+The 17 integration tests use an in-memory SQLite D1 adapter, real Web Crypto signatures and mocked Stripe HTTP responses. They cover authentication, session expiry, rate limits, CORS, CRUD, concurrent edits, authoritative prices, disabled checkout, Stripe request encoding, signed webhook verification/idempotency and payment status. Real Stripe end-to-end testing and production deployment remain pending customer/cloud credentials.
 
 References: [Stripe Checkout Sessions](https://docs.stripe.com/api/checkout/sessions/create), [Stripe webhook signatures and retries](https://docs.stripe.com/events/manage-webhook-endpoints), [D1 prepared statements](https://developers.cloudflare.com/d1/worker-api/prepared-statements/), [Worker secrets](https://developers.cloudflare.com/workers/configuration/secrets/).

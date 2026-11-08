@@ -1,4 +1,5 @@
 import '../commerce.js';
+import { createConnect } from './connect.mjs';
 
 const rules = globalThis.nornailsCommerce;
 const encoder = new TextEncoder();
@@ -50,7 +51,12 @@ async function settings(env) {
   return row ? JSON.parse(row.data) : { ...rules.defaults };
 }
 function stripeMode(env) { return /^sk_test_/.test(env.STRIPE_SECRET_KEY || '') ? 'test' : /^sk_live_/.test(env.STRIPE_SECRET_KEY || '') ? 'live' : 'unconfigured'; }
-function ready(env) { return stripeMode(env) !== 'unconfigured' && /^whsec_/.test(env.STRIPE_WEBHOOK_SECRET || '') && /^https:\/\//.test(env.STOREFRONT_URL || ''); }
+async function ready(env) {
+  if (stripeMode(env) === 'unconfigured' || !/^https:\/\//.test(env.STOREFRONT_URL || '')) return false;
+  if (!connect.enabled(env)) return /^whsec_/.test(env.STRIPE_WEBHOOK_SECRET || '');
+  if (!connect.configured(env) || !/^whsec_/.test(env.STRIPE_CONNECT_WEBHOOK_SECRET || '')) return false;
+  return (await connect.merchant(env))?.status === 'success';
+}
 async function rateLimit(request, env, scope, maximum) {
   const ip = request.headers.get('CF-Connecting-IP') || 'local';
   const now = Math.floor(Date.now() / 1000);
@@ -93,9 +99,16 @@ async function stripe(env, path, options = {}) {
   if (!response.ok) fail(502, 'Stripe rejected the request. Check server credentials and Stripe settings.');
   return result;
 }
+const connect = createConnect({ json, fail, hash, hex, stripe, stripeMode, body, readLimited, rateLimit });
 async function checkout(request, env) {
   const config = await settings(env);
-  if (!config.enabled || !ready(env)) fail(503, 'Online payment is not available yet. Contact Nornails to order.');
+  if (!config.enabled || !await ready(env)) fail(503, 'Online payment is not available yet. Contact Nornails to order.');
+  let accountId = null;
+  if (connect.enabled(env)) {
+    accountId = (await connect.merchant(env)).account_id;
+    if ((await connect.syncAccount(env, accountId)).status !== 'success') fail(503, 'The merchant Stripe account is not ready for payments.');
+  }
+  const accountHeaders = accountId ? { 'Stripe-Account': accountId } : {};
   await rateLimit(request, env, 'checkout', 20);
   const input = await body(request);
   if (!/^[a-f0-9-]{36}$/.test(input.requestId || '') || !Array.isArray(input.items) || !input.items.length || input.items.length > 20) fail(400, 'Invalid checkout request.');
@@ -116,15 +129,15 @@ async function checkout(request, env) {
   const subtotal = items.reduce((sum, item) => sum + item.quantity * item.priceOre, 0);
   const shipping = config.fulfillment === 'shipping' ? config.shippingOre : 0;
   if (subtotal + shipping > 99999999) fail(400, 'Order total is too large. Please contact Nornails.');
-  const fingerprint = await hash(JSON.stringify({ items, config, language: input.language === 'en' ? 'en' : 'nb' }));
+  const fingerprint = await hash(JSON.stringify({ items, config, accountId, language: input.language === 'en' ? 'en' : 'nb' }));
   const id = input.requestId;
   const mode = stripeMode(env);
-  await env.DB.prepare('INSERT OR IGNORE INTO orders (id, mode, status, amount, currency, items, fingerprint, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)').bind(id, mode, 'pending', subtotal + shipping, 'nok', JSON.stringify(items), fingerprint, new Date().toISOString()).run();
+  await env.DB.prepare('INSERT OR IGNORE INTO orders (id, mode, status, amount, currency, items, fingerprint, created_at, stripe_account) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)').bind(id, mode, 'pending', subtotal + shipping, 'nok', JSON.stringify(items), fingerprint, new Date().toISOString(), accountId).run();
   const order = await env.DB.prepare('SELECT fingerprint, mode, status, session_id FROM orders WHERE id = ?').bind(id).first();
   if (order.fingerprint !== fingerprint || order.mode !== mode) fail(409, 'The basket has changed. Start a new checkout.');
   if (order.status !== 'pending') fail(409, 'This checkout has already been completed or expired.');
   if (order.session_id) {
-    const existing = await stripe(env, `checkout/sessions/${encodeURIComponent(order.session_id)}`);
+    const existing = await stripe(env, `checkout/sessions/${encodeURIComponent(order.session_id)}`, { headers: accountHeaders });
     if (existing.status !== 'open') fail(409, 'This checkout is no longer open. Start a new checkout.');
     return json({ url: existing.url });
   }
@@ -151,7 +164,7 @@ async function checkout(request, env) {
     params.set('shipping_options[0][shipping_rate_data][fixed_amount][currency]', 'nok');
     params.set('shipping_options[0][shipping_rate_data][tax_behavior]', 'inclusive');
   } else params.set('custom_text[submit][message]', 'Pickup by arrangement: Rådmann Halmrasts vei 7, Sandvika.');
-  const session = await stripe(env, 'checkout/sessions', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'Idempotency-Key': id }, body: params });
+  const session = await stripe(env, 'checkout/sessions', { method: 'POST', headers: { ...accountHeaders, 'Content-Type': 'application/x-www-form-urlencoded', 'Idempotency-Key': id }, body: params });
   await env.DB.prepare('UPDATE orders SET session_id = ? WHERE id = ? AND session_id IS NULL').bind(session.id, id).run();
   return json({ url: session.url });
 }
@@ -164,13 +177,18 @@ export async function verifySignature(raw, signature, secret, now = Date.now()) 
   return fields.some(([name, value]) => name === 'v1' && typeof value === 'string' && equal(expected, value));
 }
 async function webhook(request, env) {
-  if (!env.STRIPE_WEBHOOK_SECRET || stripeMode(env) === 'unconfigured') fail(503, 'Webhook is not configured.');
+  if ((!env.STRIPE_WEBHOOK_SECRET && !env.STRIPE_CONNECT_WEBHOOK_SECRET) || stripeMode(env) === 'unconfigured') fail(503, 'Webhook is not configured.');
   const raw = await readLimited(request, 1048576);
-  if (!await verifySignature(raw, request.headers.get('stripe-signature'), env.STRIPE_WEBHOOK_SECRET)) fail(400, 'Invalid webhook signature.');
+  const signature = request.headers.get('stripe-signature');
+  const connectSigned = Boolean(env.STRIPE_CONNECT_WEBHOOK_SECRET) && await verifySignature(raw, signature, env.STRIPE_CONNECT_WEBHOOK_SECRET);
+  const directSigned = Boolean(env.STRIPE_WEBHOOK_SECRET) && await verifySignature(raw, signature, env.STRIPE_WEBHOOK_SECRET);
+  if (!connectSigned && !directSigned) fail(400, 'Invalid webhook signature.');
   let event;
   try { event = JSON.parse(raw); } catch { fail(400, 'Invalid event.'); }
   if (typeof event.id !== 'string' || !event.data?.object) fail(400, 'Invalid event.');
   if (event.livemode !== (stripeMode(env) === 'live')) fail(400, 'Stripe mode mismatch.');
+  if (event.account && !connectSigned) fail(400, 'Use the connected-account webhook endpoint secret.');
+  if (connectSigned && await connect.handleAccountEvent(env, event)) return json({ received: true });
   if (await env.DB.prepare('SELECT id FROM stripe_events WHERE id = ?').bind(event.id).first()) return json({ received: true });
   const session = event.data.object;
   const supported = ['checkout.session.completed', 'checkout.session.async_payment_succeeded', 'checkout.session.async_payment_failed', 'checkout.session.expired'];
@@ -180,6 +198,7 @@ async function webhook(request, env) {
   const order = await env.DB.prepare('SELECT * FROM orders WHERE id = ?').bind(orderId).first();
   if (!order) return json({ received: true });
   if (order.mode !== stripeMode(env) || (order.session_id && order.session_id !== session.id)) fail(400, 'Order session mismatch.');
+  if ((order.stripe_account || null) !== (event.account || null)) fail(400, 'Order Stripe account mismatch.');
   let status = event.type === 'checkout.session.expired' ? 'expired' : event.type === 'checkout.session.async_payment_failed' ? 'failed' : 'pending';
   if (session.payment_status === 'paid' && ['checkout.session.completed', 'checkout.session.async_payment_succeeded'].includes(event.type)) {
     if (session.currency !== order.currency || session.amount_total !== order.amount) fail(400, 'Order amount mismatch.');
@@ -197,11 +216,13 @@ async function route(request, env) {
   const url = new URL(request.url);
   const path = url.pathname.replace(/\/$/, '');
   if (!env.DB) fail(503, 'Database is not configured.');
+  const connectResponse = await connect.publicRoute(request, env, path);
+  if (connectResponse) return connectResponse;
   if (path === '/api/stripe/webhook' && request.method === 'POST') return webhook(request, env);
   if (path === '/api/catalog' && request.method === 'GET') {
     const result = await env.DB.prepare('SELECT data, version FROM products ORDER BY position, id').all();
     const config = await settings(env);
-    return json({ products: result.results.map(decodeProduct).filter(product => product.active), checkout: { enabled: config.enabled && ready(env), mode: stripeMode(env), fulfillment: config.fulfillment, shippingOre: config.shippingOre, currency: 'NOK' } });
+    return json({ products: result.results.map(decodeProduct).filter(product => product.active), checkout: { enabled: config.enabled && await ready(env), mode: stripeMode(env), fulfillment: config.fulfillment, shippingOre: config.shippingOre, currency: 'NOK' } });
   }
   if (path === '/api/checkout' && request.method === 'POST') return checkout(request, env);
   if (path === '/api/checkout/status' && request.method === 'GET') {
@@ -213,11 +234,13 @@ async function route(request, env) {
   if (path === '/api/admin/login' && request.method === 'POST') return login(request, env);
   if (!path.startsWith('/api/admin/')) fail(404, 'Not found.');
   const sessionHash = await authenticate(request, env);
+  const adminConnectResponse = await connect.adminRoute(request, env, path);
+  if (adminConnectResponse) return adminConnectResponse;
   if (path === '/api/admin/logout' && request.method === 'POST') { await env.DB.prepare('DELETE FROM sessions WHERE token_hash = ?').bind(sessionHash).run(); return json({ ok: true }); }
   if (path === '/api/admin/state' && request.method === 'GET') {
     const result = await env.DB.prepare('SELECT data, version FROM products ORDER BY position, id').all();
     const orders = await env.DB.prepare('SELECT id, mode, status, amount, currency, items, email, created_at FROM orders ORDER BY created_at DESC LIMIT 100').all();
-    return json({ products: result.results.map(decodeProduct), settings: await settings(env), stripe: { mode: stripeMode(env), secretConfigured: stripeMode(env) !== 'unconfigured', webhookConfigured: Boolean(env.STRIPE_WEBHOOK_SECRET), ready: ready(env), webhookUrl: new URL('/api/stripe/webhook', request.url).href }, orders: orders.results.map(order => ({ ...order, items: JSON.parse(order.items) })) });
+    return json({ products: result.results.map(decodeProduct), settings: await settings(env), stripe: { mode: stripeMode(env), secretConfigured: stripeMode(env) !== 'unconfigured', webhookConfigured: Boolean(connect.enabled(env) ? env.STRIPE_CONNECT_WEBHOOK_SECRET : env.STRIPE_WEBHOOK_SECRET), ready: await ready(env), connect: await connect.adminState(env, request), webhookUrl: new URL('/api/stripe/webhook', request.url).href }, orders: orders.results.map(order => ({ ...order, items: JSON.parse(order.items) })) });
   }
   if (path === '/api/admin/products' && request.method === 'POST') {
     const product = validate(rules.product, await body(request));
@@ -243,13 +266,15 @@ async function route(request, env) {
   }
   if (path === '/api/admin/settings' && request.method === 'PUT') {
     const input = validate(rules.settings, await body(request));
-    if (input.enabled && !ready(env)) fail(409, 'Configure the Stripe secret key, webhook secret and storefront URL first.');
+    if (input.enabled && !await ready(env)) fail(409, 'Configure Stripe and complete the merchant setup before enabling checkout.');
     await env.DB.prepare('INSERT INTO settings (id, data) VALUES (1, ?) ON CONFLICT(id) DO UPDATE SET data = excluded.data').bind(JSON.stringify(input)).run();
     return json(input);
   }
   if (path === '/api/admin/stripe/test' && request.method === 'POST') {
     if (stripeMode(env) === 'unconfigured') fail(409, 'Add STRIPE_SECRET_KEY to server secrets first.');
-    const account = await stripe(env, 'account');
+    const current = connect.enabled(env) ? await connect.merchant(env) : null;
+    if (connect.enabled(env) && !current) fail(409, 'The customer has not connected a Stripe account yet.');
+    const account = await stripe(env, current ? `accounts/${current.account_id}` : 'account');
     return json({ connected: true, mode: stripeMode(env), chargesEnabled: Boolean(account.charges_enabled) });
   }
   fail(404, 'Not found.');
@@ -263,7 +288,15 @@ export default {
     else if (request.method === 'OPTIONS') response = new Response(null, { status: 204 });
     else {
       try { response = await route(request, env); }
-      catch (error) { response = json({ error: error instanceof HttpError ? error.message : 'Request could not be completed. Please try again.' }, error instanceof HttpError ? error.status : 500); }
+      catch (error) {
+        const message = error instanceof HttpError ? error.message : 'Request could not be completed. Please try again.';
+        const status = error instanceof HttpError ? error.status : 500;
+        if (/^\/api\/connect\/(start|onboard|callback)$/.test(new URL(request.url).pathname) && request.headers.get('Accept')?.includes('text/html')) {
+          const escape = value => String(value).replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' })[c]);
+          const back = /^https:\/\//.test(env.STOREFRONT_URL || '') ? env.STOREFRONT_URL : '#';
+          response = new Response(`<!doctype html><html lang="vi"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="referrer" content="no-referrer"><title>Nornails — Setup not completed</title><style>body{margin:0;background:#fffdf8;color:#391020;font:16px/1.8 system-ui;padding:60px 24px}main{max-width:560px;margin:10vh auto}h1{font:38px/1.2 Georgia}p{color:#775e66}a{color:#651b32}small{display:block;margin-top:30px}</style><main><small>NORNAILS · STRIPE</small><h1>Chưa hoàn tất thiết lập</h1><p>Setup could not be completed. Reopen the original setup link in the same browser, or contact the website administrator.</p><p>${escape(message)}</p><a href="${escape(back)}">Về website / Back to store →</a></main></html>`, { status, headers: { 'Content-Type': 'text/html; charset=utf-8' } });
+        } else response = json({ error: message }, status);
+      }
     }
     const headers = new Headers(response.headers);
     headers.set('Cache-Control', 'no-store');
