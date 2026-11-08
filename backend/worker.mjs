@@ -153,6 +153,9 @@ async function checkout(request, env) {
   const subtotal = items.reduce((sum, item) => sum + item.quantity * item.priceOre, 0);
   const shipping = input.fulfillment === 'shipping' ? config.shippingOre : 0;
   if (subtotal + shipping > 99999999) fail(400, 'Order total is too large. Please contact Nornails.');
+  // The server still calculates every price. Reject a stale review rather than
+  // opening a session for an amount the buyer has not seen.
+  if (input.expectedTotal !== undefined && input.expectedTotal !== subtotal + shipping) fail(409, 'Prices changed. Refresh your basket before continuing.');
   const fingerprint = await hash(JSON.stringify({ items, config, accountId, fulfillment: input.fulfillment, language: input.language === 'en' ? 'en' : 'nb' }));
   const id = input.requestId;
   const mode = stripeMode(env);

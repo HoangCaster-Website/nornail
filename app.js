@@ -2,8 +2,11 @@
 
 let products = structuredClone(globalThis.nornailsCatalog);
 let commerceSettings = { enabled: false };
+const bag = globalThis.nornailsCart;
+let cartToastTimer;
 
 Object.assign(nornailsTranslations.messages.nb, {
+  'cart.title':'Handlekurven din.', 'cart.eyebrow':'DIN UTVALGTE KOLLEKSJON', 'cart.close':'Lukk handlekurv', 'cart.open':'Handlekurv, {count} varer', 'cart.add':'Legg i handlekurv', 'cart.added':'Lagt i handlekurven.', 'cart.view':'Se handlekurven', 'cart.empty':'Handlekurven er tom.', 'cart.browse':'Utforsk produktene', 'cart.remove':'Fjern', 'cart.quantity':'Antall for {name}', 'cart.minus':'Reduser antall for {name}', 'cart.plus':'Øk antall for {name}', 'cart.subtotal':'Delsum', 'cart.unpriced':'Pris må bekreftes', 'cart.help':'Du velger leveringsmåte og ser gjennom bestillingen på neste side.', 'cart.quoteHelp':'Noen varer mangler pris. Du kan be om et tilbud på neste side.', 'cart.unavailable':'Produktet er ikke tilgjengelig', 'cart.checkout':'Gå til kassen', 'cart.limit':'Du kan velge opptil 20 av hvert produkt og 20 ulike produkter.', 'cart.storage':'Handlekurven kunne ikke lagres. Tillat lagring i nettleseren og prøv igjen.',
   'checkout.quantity': 'Antall', 'checkout.buy': 'Til betaling', 'checkout.test': 'Testbetaling · ingen ekte belastning.',
   'checkout.pickup': 'Hentes i Sandvika etter avtale.', 'checkout.shipping': 'Frakt i Norge:',
   'checkout.contact': 'Kontakt oss ved spørsmål om produktet eller bestillingen.', 'checkout.error': 'Betalingen kunne ikke startes. Prøv igjen eller kontakt oss.',
@@ -14,6 +17,7 @@ Object.assign(nornailsTranslations.messages.nb, {
   'faq.prices.answer': 'Priser vises der de er oppgitt. Kontakt oss for tilgjengelighet og priser på øvrige produkter.'
 });
 Object.assign(nornailsTranslations.messages.en, {
+  'cart.title':'Your bag.', 'cart.eyebrow':'YOUR SELECTED COLLECTION', 'cart.close':'Close bag', 'cart.open':'Shopping bag, {count} items', 'cart.add':'Add to bag', 'cart.added':'Added to your bag.', 'cart.view':'View bag', 'cart.empty':'Your bag is empty.', 'cart.browse':'Explore the collection', 'cart.remove':'Remove', 'cart.quantity':'Quantity for {name}', 'cart.minus':'Decrease quantity for {name}', 'cart.plus':'Increase quantity for {name}', 'cart.subtotal':'Subtotal', 'cart.unpriced':'Price to be confirmed', 'cart.help':'Choose delivery and review your order on the next page.', 'cart.quoteHelp':'Some items need confirmed prices. You can request a quote on the next page.', 'cart.unavailable':'Product unavailable', 'cart.checkout':'Continue to checkout', 'cart.limit':'Choose up to 20 of each product and 20 different products.', 'cart.storage':'Your bag could not be saved. Allow browser storage and try again.',
   'checkout.quantity': 'Quantity', 'checkout.buy': 'Continue to checkout', 'checkout.test': 'Test payment · no real charge.',
   'checkout.pickup': 'Pickup in Sandvika by arrangement.', 'checkout.shipping': 'Shipping in Norway:',
   'checkout.contact': 'Contact us with questions about the product or your order.', 'checkout.error': 'Checkout could not be started. Please try again or contact us.',
@@ -92,6 +96,7 @@ function renderProducts(filter = currentFilter) {
         <div class="product-image"><img src="${escapeHtml(product.image)}" alt="${escapeHtml(product.brand + ' ' + product.name)}" width="700" height="700" loading="lazy" referrerpolicy="no-referrer"><span class="product-quickview" aria-hidden="true"><svg class="icon"><use href="#i-search"/></svg></span></div>
         <div class="product-info"><h3>${escapeHtml((product.brand === 'NOVICIDE' ? '' : product.brand + ' ') + product.name)}</h3><p class="product-description">${escapeHtml(product.unit)}</p><p class="product-price">${escapeHtml(productPrice(product))}</p></div>
       </button>
+      <button class="product-add" data-add-to-cart="${product.id}">${t('cart.add')} <span aria-hidden="true">＋</span></button>
     </article>`).join('');
   grid.scrollLeft = 0;
   requestAnimationFrame(updateRailButtons);
@@ -134,6 +139,7 @@ function applyLanguage(language, { persist = true, updateUrl = true } = {}) {
   renderProducts();
   renderViewAll();
   renderSearch();
+  renderCart();
   if (productDialog.open) renderProductDetails(productDialog.dataset.productId);
   if (categoryDialog.open) renderCategoryDetails(categoryDialog.dataset.categoryId);
   if (persist) {
@@ -171,8 +177,7 @@ function renderProductDetails(id) {
   const product = localProduct(source);
   const values = { name: product.brand + ' ' + product.name, unit: product.unit };
   const inquiry = mailLink(t('mail.productSubject', values), t('mail.productBody', values));
-  const deliveryOptions = `${commerceSettings.pickupEnabled ? `<option value="pickup">${t('checkout.pickupOption')}</option>` : ''}${commerceSettings.shippingEnabled && commerceSettings.shippingOre !== null ? `<option value="shipping">${t('checkout.shippingOption')} · ${escapeHtml(productPrice({ priceOre: commerceSettings.shippingOre }))}</option>` : ''}`;
-  const checkout = commerceSettings.enabled && product.priceOre != null ? `<form class="checkout-form" data-checkout="${product.id}"><label>${t('checkout.quantity')}<input name="quantity" type="number" min="1" max="20" step="1" value="1" required></label><label class="checkout-delivery">${t('checkout.delivery')}<select name="fulfillment" required><option value="" disabled selected>${t('checkout.choose')}</option>${deliveryOptions}</select></label><p class="checkout-estimate"><span data-total-label>${t('checkout.subtotal')}</span><strong data-order-total>${escapeHtml(productPrice(product))}</strong></p><button class="button button-dark" type="submit">${t('checkout.buy')} ${arrow}</button><p class="checkout-note">${commerceSettings.mode === 'test' ? t('checkout.test') + ' ' : ''}${t('checkout.orderHelp')}</p><p class="checkout-error" role="alert"></p></form>` : '';
+  const checkout = `<form class="checkout-form cart-add-form" data-cart-add="${product.id}"><label>${t('checkout.quantity')}<input name="quantity" type="number" min="1" max="20" step="1" value="1" required></label><button class="button button-dark" type="submit">${t('cart.add')} <span aria-hidden="true">＋</span></button><button class="cart-view-link" type="button" data-cart-open>${t('cart.view')} →</button><p class="checkout-error" role="alert"></p></form>`;
   document.querySelector('#product-dialog-content').innerHTML = `<div class="product-dialog-layout"><div class="dialog-product-image"><img src="${escapeHtml(product.image)}" alt="${escapeHtml(product.brand + ' ' + product.name)}" width="700" height="700" referrerpolicy="no-referrer"></div><div class="dialog-product-info"><span class="eyebrow">${escapeHtml(product.brand)} / ${escapeHtml(product.tag)}</span><h2 id="dialog-title">${escapeHtml(product.name)}</h2><span class="product-unit">${escapeHtml(product.unit)}</span><p>${escapeHtml(product.description)}</p><p class="detail-price">${escapeHtml(productPrice(product))}</p><dl class="product-specs">${product.specs.map(([label, value]) => `<div><dt>${escapeHtml(label)}</dt><dd>${escapeHtml(value)}</dd></div>`).join('')}</dl>${checkout}<a class="button ${checkout ? 'inquiry-secondary' : 'button-dark'}" href="${escapeHtml(inquiry)}">${t('product.ask')} ${arrow}</a><p class="dialog-disclaimer">${product.priceOre == null ? t('product.disclaimer') : t('checkout.contact')}${product.safety ? ' ' + t('product.safety') : ''}</p></div></div>`;
 }
 
@@ -352,7 +357,7 @@ async function loadStoreCatalogue() {
     products = data.products.map(item => globalThis.nornailsCommerce.product(item));
     commerceSettings = data.checkout;
     document.querySelector('.spotlight').hidden = !products.some(product => product.id === 'urawa');
-    renderProducts(); renderSearch();
+    renderProducts(); renderSearch(); renderCart();
     if (productDialog.open) {
       if (products.some(product => product.id === productDialog.dataset.productId)) renderProductDetails(productDialog.dataset.productId);
       else productDialog.close();
@@ -369,47 +374,59 @@ async function loadStoreCatalogue() {
   }
 }
 
-function updateOrderEstimate(event) {
-  const form = event.target.closest('[data-checkout]');
-  if (!form) return;
-  const product = products.find(item => item.id === form.dataset.checkout);
-  const quantity = Number(form.elements.quantity.value);
-  if (!product || !Number.isInteger(quantity) || quantity < 1 || quantity > 20) return;
-  const selected = form.elements.fulfillment.value;
-  const fee = selected === 'shipping' ? commerceSettings.shippingOre || 0 : 0;
-  form.querySelector('[data-total-label]').textContent = t(selected ? 'checkout.total' : 'checkout.subtotal');
-  form.querySelector('[data-order-total]').textContent = productPrice({ priceOre: product.priceOre * quantity + fee });
+function cartNotify(message) {
+  const toast = document.querySelector('#cart-toast');
+  toast.textContent = message; toast.hidden = false;
+  clearTimeout(cartToastTimer);
+  cartToastTimer = setTimeout(() => { toast.hidden = true; }, 3500);
 }
-document.addEventListener('input', updateOrderEstimate);
-document.addEventListener('change', updateOrderEstimate);
-
-document.addEventListener('submit', async event => {
-  const form = event.target.closest('[data-checkout]');
+function renderCart() {
+  const items = bag.read();
+  const count = items.reduce((sum, item) => sum + item.quantity, 0);
+  document.querySelector('#cart-count').textContent = count;
+  document.querySelector('#cart-open').setAttribute('aria-label', t('cart.open', { count }));
+  const { lines, subtotal } = bag.resolve(items, products);
+  document.querySelector('#cart-content').innerHTML = !lines.length ? `<div class="cart-empty"><p>${t('cart.empty')}</p><button class="button button-dark" data-cart-continue>${t('cart.browse')} ${arrow}</button></div>` : `<div class="cart-lines">${lines.map(({ id, quantity, product: source }) => {
+    const product = source ? localProduct(source) : null;
+    const name = product ? product.brand + ' ' + product.name : t('cart.unavailable') + ' · ' + id;
+    return `<article class="cart-line">${product ? `<img src="${escapeHtml(product.image)}" alt="" width="80" height="90" referrerpolicy="no-referrer">` : '<span class="cart-missing" aria-hidden="true">!</span>'}<div><h3>${escapeHtml(name)}</h3><p>${escapeHtml(product?.unit || '')}</p><strong>${product?.priceOre != null ? escapeHtml(productPrice({ priceOre: product.priceOre * quantity })) : t('cart.unpriced')}</strong><div class="cart-line-actions"><div class="cart-quantity"><button type="button" data-cart-step="-1" data-cart-id="${id}" aria-label="${escapeHtml(t('cart.minus', { name }))}" ${quantity === 1 ? 'disabled' : ''}>−</button><input type="number" min="1" max="20" step="1" value="${quantity}" data-cart-quantity="${id}" aria-label="${escapeHtml(t('cart.quantity', { name }))}"><button type="button" data-cart-step="1" data-cart-id="${id}" aria-label="${escapeHtml(t('cart.plus', { name }))}" ${quantity === 20 ? 'disabled' : ''}>＋</button></div><button class="cart-remove" data-cart-remove="${id}">${t('cart.remove')}</button></div></div></article>`;
+  }).join('')}</div><div class="cart-summary"><div><span>${t('cart.subtotal')}</span><strong>${subtotal === null ? t('cart.unpriced') : escapeHtml(productPrice({ priceOre: subtotal }))}</strong></div><p>${t(subtotal === null ? 'cart.quoteHelp' : 'cart.help')}</p><a class="button button-dark" id="cart-checkout" href="payment.html?cart=1&lang=${currentLanguage}">${t('cart.checkout')} ${arrow}</a><button class="cart-view-link" data-cart-continue>${t('cart.browse')}</button></div>`;
+}
+function addToCart(id, quantity) {
+  if (!products.some(item => item.id === id && item.active)) return;
+  const existing = bag.read().find(item => item.id === id)?.quantity || 0;
+  if (!Number.isInteger(quantity) || quantity < 1 || existing + quantity > 20 || (!existing && bag.read().length >= 20)) { cartNotify(t('cart.limit')); return; }
+  try { bag.add(id, quantity); renderCart(); cartNotify(t('cart.added')); }
+  catch { cartNotify(t('cart.storage')); }
+}
+document.addEventListener('click', event => {
+  const add = event.target.closest('[data-add-to-cart]');
+  if (event.target.closest('#cart-checkout')) { const invalid = document.querySelector('#cart-content input:invalid'); if (invalid) { event.preventDefault(); invalid.reportValidity(); } }
+  if (add) addToCart(add.dataset.addToCart, 1);
+  if (event.target.closest('[data-cart-open]')) { renderCart(); openDialog(document.querySelector('#cart-dialog')); }
+  if (event.target.closest('[data-cart-continue]')) { document.querySelector('#cart-dialog').close(); document.querySelector('#produkter').scrollIntoView({ behavior:'smooth' }); }
+  const remove = event.target.closest('[data-cart-remove]');
+  const step = event.target.closest('[data-cart-step]');
+  if (remove || step) {
+    const id = remove?.dataset.cartRemove || step.dataset.cartId;
+    const quantity = remove ? 0 : (bag.read().find(item => item.id === id)?.quantity || 1) + Number(step.dataset.cartStep);
+    try { bag.set(id, quantity); renderCart(); document.querySelector(`[data-cart-quantity="${id}"]`)?.focus(); } catch { cartNotify(t('cart.storage')); }
+  }
+});
+document.addEventListener('change', event => {
+  const input = event.target.closest('[data-cart-quantity]');
+  if (!input) return;
+  if (!input.checkValidity()) { input.reportValidity(); return; }
+  try { bag.set(input.dataset.cartQuantity, Number(input.value)); renderCart(); document.querySelector(`[data-cart-quantity="${input.dataset.cartQuantity}"]`)?.focus(); } catch { cartNotify(t('cart.storage')); }
+});
+document.addEventListener('submit', event => {
+  const form = event.target.closest('[data-cart-add]');
   if (!form) return;
   event.preventDefault();
-  const button = form.querySelector('button');
-  if (button.disabled) return;
-  const quantity = Number(form.elements.quantity.value);
-  const error = form.querySelector('.checkout-error');
-  if (!Number.isInteger(quantity) || quantity < 1 || quantity > 20) { form.reportValidity(); return; }
-  const fulfillment = form.elements.fulfillment.value;
-  if (!['pickup', 'shipping'].includes(fulfillment)) { form.reportValidity(); return; }
-  const signature = `${form.dataset.checkout}:${quantity}:${fulfillment}:${currentLanguage}`;
-  if (form.dataset.signature !== signature) { form.dataset.requestId = crypto.randomUUID(); form.dataset.signature = signature; }
-  button.disabled = true;
-  button.textContent = t('checkout.loading');
-  error.textContent = '';
-  try {
-    const response = await fetch(globalThis.nornailsConfig.apiUrl.replace(/\/$/, '') + '/api/checkout', { method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: AbortSignal.timeout(25000), body: JSON.stringify({ items: [{ id: form.dataset.checkout, quantity }], fulfillment, language: currentLanguage, requestId: form.dataset.requestId }) });
-    const result = await response.json();
-    if (!response.ok) { if (response.status < 500) form.dataset.signature = ''; throw new Error('Checkout unavailable'); }
-    if (!/^cs_(test_|live_)?[A-Za-z0-9_]{10,250}$/.test(result.sessionId || '')) throw new Error('Invalid payment session');
-    const target = new URL('payment.html', window.location.href);
-    target.searchParams.set('session_id', result.sessionId);
-    target.searchParams.set('lang', currentLanguage);
-    window.location.assign(target.href);
-  } catch { error.textContent = t('checkout.error'); button.disabled = false; button.innerHTML = `${t('checkout.buy')} ${arrow}`; }
+  if (!form.reportValidity()) return;
+  addToCart(form.dataset.cartAdd, Number(form.elements.quantity.value));
 });
+window.addEventListener('storage', event => { if (event.key === bag.key) renderCart(); });
 
 if ('IntersectionObserver' in window && !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
   const observer = new IntersectionObserver(entries => {

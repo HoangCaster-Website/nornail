@@ -95,7 +95,7 @@ terms and tax settings, then test the complete Stripe flow before enabling check
 
 ## Verification performed
 
-- 26 automated API, payment, OAuth and PostgreSQL-adapter checks passed.
+- 30 automated API, payment, OAuth and PostgreSQL-adapter checks passed.
 - All 42 prepared statements ran against the actual hosted PostgreSQL database.
   Version conflicts and successful/failed atomic batches were checked. Every test
   write was rolled back; products remain eight, orders/admins/sessions remain zero.

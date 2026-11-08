@@ -141,6 +141,6 @@ Set the emitted signing secret in local `.dev.vars`, restart the Worker, and use
 npm test
 ```
 
-The 26 automated tests use an in-memory SQLite adapter, real Web Crypto signatures, PostgreSQL statement checks and mocked Stripe HTTP responses. They cover authentication, session expiry, rate limits, CORS, CRUD, concurrent edits, authoritative prices, disabled checkout, Stripe request encoding, signed webhook verification/idempotency and payment status. The Supabase deployment and real PostgreSQL rollback checks are documented in `supabase/README.md`. Real Stripe end-to-end testing still awaits merchant credentials.
+The 30 automated tests use an in-memory SQLite adapter, real Web Crypto signatures, PostgreSQL statement checks and mocked Stripe HTTP responses. They cover authentication, session expiry, rate limits, CORS, CRUD, concurrent edits, authoritative prices, disabled checkout, Stripe request encoding, signed webhook verification/idempotency and payment status. The Supabase deployment and real PostgreSQL rollback checks are documented in `supabase/README.md`. Real Stripe end-to-end testing still awaits merchant credentials.
 
 References: [Stripe Checkout Sessions](https://docs.stripe.com/api/checkout/sessions/create), [Stripe webhook signatures and retries](https://docs.stripe.com/events/manage-webhook-endpoints), [D1 prepared statements](https://developers.cloudflare.com/d1/worker-api/prepared-statements/), [Worker secrets](https://developers.cloudflare.com/workers/configuration/secrets/).

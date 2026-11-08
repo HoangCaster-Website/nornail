@@ -120,3 +120,22 @@ test('legacy pending sessions are retrieved once and reused instead of creating 
     assert.equal(mock.calls.filter(item=>item.options.method!=='POST').length,1);
   } finally {mock.restore();}
 });
+
+test('multi-item bags use authoritative totals, charge shipping once and reject a stale review before creating an order',async()=>{
+  const env=environment();const token=await prepareCheckout(env,10000);
+  const product={...globalThis.nornailsCatalog.find(product=>product.id==='w2'),priceOre:5000,version:1};
+  assert.equal((await call(env,'/api/admin/products/w2',{method:'PUT',token,input:product})).status,200);
+  const mock=mockStripe();
+  const request={requestId:crypto.randomUUID(),items:[{id:'w1',quantity:2},{id:'w2',quantity:3}],fulfillment:'shipping',language:'en',expectedTotal:44900};
+  try {
+    const stale=await call(env,'/api/checkout',{method:'POST',input:{...request,expectedTotal:1}});
+    assert.equal(stale.status,409);assert.equal(mock.calls.length,0);
+    assert.equal(env.DB.sqlite.prepare('SELECT count(*) AS count FROM orders').get().count,0);
+    const result=await call(env,'/api/checkout',{method:'POST',input:request});assert.equal(result.status,200);
+    const invoice=(await call(env,'/api/checkout/invoice?session_id='+result.data.sessionId)).data;
+    assert.equal(invoice.items.length,2);assert.equal(invoice.subtotal,35000);assert.equal(invoice.shippingOre,9900);assert.equal(invoice.total,44900);
+    const params=mock.calls[0].options.body;assert.equal(params.get('line_items[1][quantity]'),'3');
+    await call(env,'/api/checkout',{method:'POST',input:request});
+    assert.equal(mock.calls.filter(call=>call.options.method==='POST').length,1);
+  } finally {mock.restore();}
+});
