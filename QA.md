@@ -72,3 +72,5 @@ Bản cập nhật dùng nền trắng và taupe, ảnh manicure thật, chữ L
 - All 23 API integration tests pass, including buyer choice and authoritative shipping, disabled/missing options/fees, public invoice privacy, saved admin shipping addresses, processing-to-paid/failure, expiry, unknown sessions and legacy session reuse.
 - Browser integration with the actual Worker/SQLite handler and mocked Stripe passed: required buyer choice, totals, invoice navigation, QR decoding, automatic paid updates, reload/idempotence, cancellation, outage/recovery, async processing/failure, expired/forged status, admin options, and iPhone 13 touch controls. No JS errors or horizontal overflow at 1440/1024/768/390/320px in NO/EN.
 - Local D1 migration 0004 and Worker dry-run build pass. Payment/Stripe services remain unconfigured in the public static site; no real payment was attempted and no demo invoice/price/QR is exposed as a genuine order.
+
+- Payment print-media check: test orders retain a visible test-mode label in printed order summaries, including when the QR panel is omitted from print.

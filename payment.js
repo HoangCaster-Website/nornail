@@ -42,6 +42,7 @@
     $('#retry-empty').hidden = !api || !validReference || !['unavailable','invalid'].includes(state);
     text('#payment-empty-message',c[state+'Body'] || c.wait);
     if (!invoice) return;
+    $('#invoice-print-test').hidden = invoice.mode !== 'test'; text('#invoice-print-test',c.test);
     text('#invoice-reference',invoice.id); text('#invoice-date',date(invoice.createdAt));
     $('#invoice-items').innerHTML = invoice.items.map(item => `<article class="invoice-line"><div><h3>${escape(item.name)}</h3><p>${escape(item.unit || '')}${item.unit ? ' · ' : ''}${c.quantity}: ${item.quantity}<br>${escape(money(item.priceOre))} ${c.each}</p></div><strong>${escape(money(item.priceOre * item.quantity))}</strong></article>`).join('');
     text('#invoice-subtotal',money(invoice.subtotal)); text('#invoice-shipping',money(invoice.shippingOre)); text('#invoice-total',money(invoice.total));
