@@ -2,6 +2,21 @@
 // UI copy only. Product names, entered values and API credentials are never translated.
 (() => {
   const vi = {
+    'Order source':'Nguồn đơn hàng', 'Store orders':'Đơn cửa hàng thật', 'Sandbox orders':'Đơn sandbox',
+    'Sandbox orders · Read-only':'Đơn sandbox · Chỉ xem',
+    'Sandbox seller workspace':'Quản lý đơn sandbox của người bán',
+    'View test orders, buyer details and payment confirmations. Read-only access.':'Xem đơn test, thông tin khách và kết quả thanh toán. Link này chỉ có quyền xem.',
+    'Clear viewer access':'Xóa quyền xem trong tab này', 'Loaded orders':'Đơn đã tải', 'Paid orders':'Đơn đã thanh toán', 'Paid test total':'Tổng tiền test đã thanh toán',
+    'Search orders':'Tìm đơn hàng', 'Order reference, email or product…':'Mã đơn, email hoặc sản phẩm…', 'Payment status':'Trạng thái thanh toán', 'All statuses':'Mọi trạng thái',
+    'Loading sandbox orders…':'Đang tải đơn sandbox…', 'Loading your orders…':'Đang tải đơn hàng…', 'PRIVATE SELLER VIEW':'QUYỀN XEM RIÊNG CỦA NGƯỜI BÁN',
+    'Open your private seller link.':'Mở link riêng của người bán.', 'Use the private admin sandbox link to view test orders. It does not require creating an account.':'Dùng link admin sandbox riêng để xem đơn test. Chưa cần tạo tài khoản đăng nhập.',
+    'Updated':'Cập nhật', 'Automatically refreshes while this page is open.':'Tự cập nhật khi đang mở trang này.',
+    'Showing the latest 100 sandbox checkouts. Only Paid means Stripe confirmed payment.':'Hiển thị 100 lượt đặt hàng sandbox mới nhất. Chỉ trạng thái Đã thanh toán mới có xác nhận từ Stripe.',
+    'Customer details pending':'Chưa có thông tin khách', 'Order details':'Chi tiết đơn', 'Order details ↗':'Chi tiết đơn ↗', 'View invoice / print ↗':'Xem / in hóa đơn ↗',
+    'SANDBOX ORDER':'ĐƠN HÀNG SANDBOX', 'Order reference':'Mã đơn hàng', 'Created':'Thời gian tạo', 'Customer':'Khách hàng', 'Delivery':'Nhận hàng', 'Quantity':'Số lượng',
+    'Products subtotal':'Tiền sản phẩm', 'Shipping':'Phí giao hàng', 'Total':'Tổng cộng', 'Test order only. No real money or shipment.':'Đây là đơn test, không thu tiền hay giao hàng thật.',
+    'Close order details':'Đóng chi tiết đơn', 'No matching orders.':'Không có đơn phù hợp.', 'Try another search or payment status.':'Thử từ khóa hoặc trạng thái thanh toán khác.',
+    'Could not refresh sandbox orders. Try again.':'Chưa cập nhật được đơn sandbox. Vui lòng thử lại.', 'Your viewer link is invalid or expired. Reopen the private seller link.':'Link xem không hợp lệ hoặc đã hết hạn. Hãy mở lại link riêng của người bán.',
     'Nornails — Store admin': 'Nornails — Quản trị cửa hàng', 'Nornails — Stripe setup': 'Nornails — Thiết lập Stripe',
     'Delivery methods offered to customers': 'Cách nhận hàng dành cho người mua',
     'Customers choose how to receive their order at checkout. You only set the available options and shipping fee.': 'Người mua tự chọn cách nhận hàng khi đặt đơn. Bạn chỉ cấu hình các lựa chọn được hỗ trợ và phí giao hàng.',
@@ -189,6 +204,7 @@
     language = next;
     try { localStorage.setItem('nornails.admin.language', language); } catch { /* Optional preference. */ }
     apply();
+    document.dispatchEvent(new CustomEvent('nornails:admin-language',{detail:language}));
   }
   document.addEventListener('click', event => { const button = event.target.closest('[data-admin-language]'); if (button) setLanguage(button.dataset.adminLanguage); });
   globalThis.nornailsAdminI18n = { translate, apply, setLanguage, get language() { return language; } };

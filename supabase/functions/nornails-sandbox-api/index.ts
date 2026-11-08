@@ -12,7 +12,7 @@ let loadedAt = 0;
 async function environment() {
   if (cached && Date.now() - loadedAt < 60000 && Date.now() < Date.parse(cached.SANDBOX_EXPIRES_AT)) return cached;
   // Only this sandbox's Vault references are read. No secrets are sent to clients.
-  const rows = await sql`SELECT c.expires_at, k.decrypted_secret AS stripe_key, w.decrypted_secret AS webhook_key
+  const rows = await sql`SELECT c.expires_at, c.seller_viewer_hash, k.decrypted_secret AS stripe_key, w.decrypted_secret AS webhook_key
     FROM public.nornails_sandbox_config c
     LEFT JOIN vault.decrypted_secrets k ON k.id = c.stripe_secret_id
     LEFT JOIN vault.decrypted_secrets w ON w.id = c.webhook_secret_id WHERE c.id = 1`;
@@ -27,6 +27,7 @@ async function environment() {
     API_PATH_PREFIX:'/functions/v1/nornails-sandbox-api', FUNCTION_PATH:'/nornails-sandbox-api',
     STOREFRONT_URL:'https://hoangcaster-website.github.io/nornail/', ALLOWED_ORIGINS:allowed.join(','),
     STRIPE_SECRET_KEY:key, STRIPE_WEBHOOK_SECRET:valid ? config.webhook_key : undefined,
+    SELLER_VIEWER_HASH:config?.seller_viewer_hash,
     adminCredentials:async () => null
   };
   loadedAt = Date.now();

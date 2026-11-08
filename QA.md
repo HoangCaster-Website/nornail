@@ -110,3 +110,11 @@ Bản cập nhật dùng nền trắng và taupe, ảnh manicure thật, chữ L
 - All 34 automated tests pass. Existing main-store browser checkout/delivery toggle tests still pass, including iPhone touch and 1440/768/390/320px layouts.
 - Real hosted API created a two-product NOK 235 Stripe session. Decoded on-screen QR exactly matched its hosted Checkout URL with fragment. Entered the official 4242 test card on Stripe, completed payment, and verified the authentic signed webhook changed the separate database order to paid. Another open invoice tab updated automatically, hid the QR and settled only the test cart.
 - Sandbox review/invoice layouts passed 1440/768/390/320px checks without JS errors/overflow. No real funds moved. Test instructions and terms explicitly state no goods or delivery, and the guide gives the expiry date.
+
+## Private sandbox seller admin — 2026-11-08
+
+- Added a private read-only seller link that opens Admin → Orders → Sandbox directly. No account/email login was introduced. The raw 256-bit capability is carried only in the initial fragment and then tab sessionStorage; only its SHA-256 hash is stored in the sandbox config.
+- New `/api/seller/orders` endpoint requires the scoped capability, test-only environment and expiry. Anonymous/wrong/expired requests are denied, and the viewer cannot access live data, admin state or product writes. Responses are no-store; client request URLs contain no capability. Private customer fields never appear in a public list.
+- The seller can see the actual 125 NOK paid order, all test attempts, buyer email/delivery, line items, totals, invoice/print links, filters/search and refresh. The loaded dataset currently has 4 test orders, 3 paid. No order/payment data was modified for this feature.
+- All 36 automated tests pass. Browser QA passed with actual hosted order data, VI/EN, private access after reload, public denial, clearing access, opening the correct paid invoice, and 1440/768/390/320px plus iPhone touch. Credentials were not included in HTTP URLs or Git.
+- Fixed a test-banner/admin-language observer loop and aligned the fixed sidebar beneath the test banner. Buyer details are escaped and kept outside UI translation; clearing viewer access also clears detail/search data in the tab.

@@ -263,6 +263,7 @@ async function route(request, env) {
     return json({ products: result.results.map(decodeProduct).filter(product => product.active), storage: env.STORAGE_NAME || 'database', adminConfigured: env.adminCredentials ? Boolean(await env.adminCredentials()) : Boolean(env.ADMIN_EMAIL && env.ADMIN_PASSWORD_HASH), checkout: { enabled: config.enabled && await ready(env), mode: stripeMode(env), pickupEnabled: config.pickupEnabled, shippingEnabled: config.shippingEnabled && config.shippingOre !== null, shippingOre: config.shippingOre, currency: 'NOK' } });
   }
   if (path === '/api/checkout' && request.method === 'POST') return checkout(request, env);
+  if (path === '/api/seller/orders' && request.method === 'GET') return sellerOrders(request, env);
   if (['/api/checkout/status', '/api/checkout/invoice'].includes(path) && request.method === 'GET') {
     const sessionId = url.searchParams.get('session_id');
     const orderId = url.searchParams.get('order_id');
@@ -368,3 +369,14 @@ export default {
     return new Response(response.body, { status: response.status, headers });
   }
 };
+
+// A read-only capability for the sandbox seller. It is deliberately separate
+// from admin sessions and cannot publish products, change prices or list live data.
+async function sellerOrders(request, env) {
+  if (!env.TEST_ONLY || !/^[a-f0-9]{64}$/.test(env.SELLER_VIEWER_HASH || '')) fail(404, 'Not found.');
+  const value = request.headers.get('Authorization')?.match(/^Bearer (v_[a-f0-9]{64})$/)?.[1];
+  if (!value || !equal(await hash(value), env.SELLER_VIEWER_HASH) || !Number.isFinite(Date.parse(env.SANDBOX_EXPIRES_AT)) || Date.now() >= Date.parse(env.SANDBOX_EXPIRES_AT)) fail(401, 'Open your private seller link to view sandbox orders.');
+  await rateLimit(request, env, 'seller-orders', 120);
+  const result = await env.DB.prepare('SELECT id, mode, status, amount, currency, items, email, created_at, fulfillment, shipping_ore, delivery_details FROM orders ORDER BY created_at DESC LIMIT 100').all();
+  return json({ mode:'test', readOnly:true, expiresAt:env.SANDBOX_EXPIRES_AT, orders:result.results.filter(order => order.mode === 'test').map(order => ({...order,items:JSON.parse(order.items)})) });
+}

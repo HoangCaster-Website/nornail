@@ -63,7 +63,7 @@ For a permanent merchant, configure a merchant-owned Stripe environment separate
 
 ## Evidence
 
-- All 34 automated checks pass, including test/live guards, namespace boundaries,
+- All 36 automated checks pass, including test/live guards, namespace boundaries,
   environment-preserving return URLs and independent cart/retry state.
 - Actual hosted Supabase API created a Stripe Checkout session for the NOK 235
   multi-item order. The displayed QR was decoded and matched the full Stripe URL,
@@ -83,3 +83,29 @@ References: [Stripe sandboxes](https://docs.stripe.com/sandboxes),
 [temporary CLI sandboxes](https://docs.stripe.com/cli/sandbox),
 [test cards](https://docs.stripe.com/testing),
 [Supabase Vault](https://supabase.com/docs/guides/database/vault).
+
+## Private seller administration
+
+The seller opens a private link to `admin.html?sandbox=1#orders&viewer=...`.
+The real capability value is never committed or published in the test guide.
+It is a random 256-bit bearer credential; only its SHA-256 digest is stored in
+`nornails_sandbox_config.seller_viewer_hash`. It expires with the sandbox.
+
+The admin removes the credential fragment from browser history after reading it
+and keeps access in sessionStorage for that tab. Requests use an Authorization
+header, not a query string. The server endpoint `/api/seller/orders` requires the
+correct credential, TEST_ONLY mode and a valid expiry. It returns up to 100 test
+orders with customer/delivery details and immutable line items. Unauthorized
+requests fail; the capability does not authorize admin state, product/price writes
+or live-order access.
+
+The VI/EN seller workspace includes search, payment-status filters, paid test
+summaries, order details, invoice/print links, manual refresh and 30-second refresh
+while visible. Clearing access removes the token and rendered customer details
+from the current tab. A private link can be reopened without creating an account.
+Real-store admin account configuration remains deferred.
+
+Migration `20261108091403_nornails_sandbox_seller_viewer.sql` adds only the nullable
+hash column to the sandbox config. The deployed sandbox function is version 2.
+No Stripe secret, raw viewer capability, customer email or delivery address belongs
+in source, documentation, screenshots committed to Git, or public order lists.

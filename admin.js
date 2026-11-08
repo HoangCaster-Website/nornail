@@ -3,8 +3,8 @@
 (() => {
   const $ = selector => document.querySelector(selector);
   const rules = globalThis.nornailsCommerce;
-  const draftKey = 'nornails.admin.catalog.v1';
-  const settingsKey = 'nornails.admin.checkout.v1';
+  const draftKey = globalThis.nornailsConfig.sandbox ? 'nornails.admin.sandbox.catalog.v1' : 'nornails.admin.catalog.v1';
+  const settingsKey = globalThis.nornailsConfig.sandbox ? 'nornails.admin.sandbox.checkout.v1' : 'nornails.admin.checkout.v1';
   const categoryNames = { negler: 'Negler', manikyr: 'Manikyrutstyr', pedikyr: 'Pedikyr', bits: 'Drill bits', elektrisk: 'Elektrisk utstyr', hygiene: 'Sterilisering' };
   const clone = value => structuredClone(value);
   const escape = value => String(value ?? '').replace(/[&<>"']/g, character => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character]);
@@ -64,6 +64,8 @@
     $('#breadcrumb').textContent = { products: 'Products', payments: 'Payments', orders: 'Orders', setup: 'Store setup' }[page];
     history.replaceState(null, '', `#${page}`);
     window.scrollTo({ top: 0, behavior: 'instant' });
+    renderMode();
+    document.dispatchEvent(new CustomEvent('nornails:admin-page', {detail:page}));
   }
   function filteredProducts() {
     const query = $('#admin-search').value.toLocaleLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
@@ -88,6 +90,7 @@
     $('#logout').hidden = !remote;
     $('#save-note').textContent = remote ? 'Changes publish to the connected store' : 'Drafts stay in this browser';
     $('#footer-mode').textContent = remote ? 'Connected store workspace' : 'Local preparation workspace';
+    if (globalThis.nornailsSellerOrders?.active && !$('#page-orders').hidden) $('#footer-mode').textContent = 'Sandbox orders · Read-only';
     $('#mode-notice').innerHTML = remote ? '<span class="notice-dot" aria-hidden="true"></span><p><strong>Store connected.</strong> Saved products and prices update the public catalogue. Checkout remains controlled by your payment settings.</p><button class="text-button" id="reload-state">Refresh catalogue →</button>' : '<span class="notice-dot" aria-hidden="true"></span><p><strong>Prepare your store.</strong> Changes are saved as drafts in this browser. Connect the store API to publish products and prices to the website.</p><button class="text-button" data-page="setup">Setup guide →</button>';
     if (!remote && databaseConnected && !adminConfigured) $('#mode-notice').innerHTML = '<span class="notice-dot" aria-hidden="true"></span><p><strong>Database connected.</strong> The storefront reads products from Supabase. Admin sign-in is deferred; edits here remain local drafts.</p><button class="text-button" data-page="setup">Setup guide →</button>';
     $('#import-open').disabled = remote;
@@ -315,7 +318,8 @@
   $('#admin-search').addEventListener('input', renderProducts);
   $('#category-filter').addEventListener('change', renderProducts);
   $('#clear-filters').addEventListener('click', () => { $('#admin-search').value = ''; $('#category-filter').value = 'all'; document.querySelector('[data-visibility="all"]').click(); });
-  $('#refresh-orders').addEventListener('click', refreshState);
+  $('#refresh-orders').addEventListener('click', () => globalThis.nornailsSellerOrders?.active ? globalThis.nornailsSellerOrders.refresh() : refreshState());
+  document.addEventListener('nornails:orders-source',renderMode);
   $('#connect-open').addEventListener('click', () => {
     const form = $('#connect-form');
     let saved = '';
@@ -424,7 +428,7 @@
     if (!base) return;
     try {
       const catalogue = await request('/api/catalog', { cache: 'no-store' }, base, '');
-      databaseConnected = catalogue.storage === 'supabase';
+      databaseConnected = ['supabase','supabase-sandbox'].includes(catalogue.storage);
       adminConfigured = catalogue.adminConfigured === true;
       let hasDraft = true;
       try { hasDraft = Boolean(localStorage.getItem(draftKey)); } catch { /* Preserve current data if storage cannot be checked. */ }
@@ -436,6 +440,6 @@
     }
   }
   renderAll();
-  switchPage(location.hash.slice(1) || 'products');
+  switchPage(location.hash.slice(1).split('&')[0] || 'products');
   checkDatabase();
 })();
