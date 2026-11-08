@@ -118,3 +118,10 @@ Bản cập nhật dùng nền trắng và taupe, ảnh manicure thật, chữ L
 - The seller can see the actual 125 NOK paid order, all test attempts, buyer email/delivery, line items, totals, invoice/print links, filters/search and refresh. The loaded dataset currently has 4 test orders, 3 paid. No order/payment data was modified for this feature.
 - All 36 automated tests pass. Browser QA passed with actual hosted order data, VI/EN, private access after reload, public denial, clearing access, opening the correct paid invoice, and 1440/768/390/320px plus iPhone touch. Credentials were not included in HTTP URLs or Git.
 - Fixed a test-banner/admin-language observer loop and aligned the fixed sidebar beneath the test banner. Buyer details are escaped and kept outside UI translation; clearing viewer access also clears detail/search data in the tab.
+
+
+## Owner payment setup guidance — 2026-11-08
+
+- Clarified the existing admin setup-link flow: the website operator must configure a Stripe Connect platform and private management access once; the store owner then enters business, identity and bank information on Stripe. Added official registration/Connect settings links and complete VI/EN instructions.
+- Link creation remains unavailable without authorized admin access and server Connect configuration. The sandbox order viewer grants no payment-management permissions. No live Stripe account, credential, payment, database schema or auth configuration was created or changed.
+- Headless browser QA loaded the real Supabase catalogue, checked default Vietnamese and English switching, guide expand/collapse, disabled unconfigured link creation, official link destinations, no browser errors and no horizontal overflow at 1440/768/390/320px. Both changed scripts pass syntax checks.

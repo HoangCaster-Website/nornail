@@ -17,6 +17,15 @@
 @media(max-width:360px){.sidebar .nav-item{flex-direction:column;justify-content:center;gap:2px;padding:8px 4px;overflow-wrap:normal}.sidebar .nav-item>span:first-child{font-size:16px;width:auto}}
 
 /* Vietnamese/English controls and merchant self-service setup. */
+.payment-prerequisites{margin-bottom:28px;border-left:3px solid var(--wine)}
+.payment-setup-steps{padding-left:22px;margin:22px 0;display:grid;gap:24px}
+.payment-setup-steps li{padding-left:8px;font-size:12px;line-height:1.85}
+.payment-setup-steps li::marker{color:var(--wine);font-weight:600}
+.payment-setup-steps strong{font-size:14px;font-weight:500}
+.payment-setup-steps p{margin:7px 0;color:var(--muted);max-width:760px}
+.payment-setup-steps .inline-link{display:inline-flex;align-items:center;min-height:44px;white-space:normal}
+.owner-setup-note{border-left:2px solid var(--line);padding-left:13px}
+@media(max-width:700px){.payment-prerequisites{padding:22px}.payment-prerequisites>summary{font-size:26px}.payment-setup-steps{padding-left:18px;gap:20px}.payment-setup-steps li{padding-left:5px}.payment-setup-steps strong{font-size:13px}}
 .admin-languages{display:flex;align-items:center;border:1px solid var(--line);border-radius:4px;overflow:hidden;flex:none}
 .admin-languages button{background:var(--paper);font-size:11px;padding:7px 10px;min-height:34px}
 .admin-languages button[aria-pressed=true]{background:var(--wine);color:white}

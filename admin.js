@@ -124,7 +124,8 @@
     $('#create-setup-link').disabled = !remote || !connection?.configured;
     $('#refresh-setup').disabled = !remote || !connection?.configured;
     $('#revoke-setup-links').disabled = !remote || !connection?.configured;
-    $('#setup-link-help').textContent = !remote ? 'Connect the store API and configure Stripe Connect before creating a real customer link.' : !connection?.configured ? 'Stripe Connect is not configured on this API yet.' : 'Share the setup link with the store owner. A newly created link replaces previous setup invitations.';
+    $('#setup-link-help').textContent = !remote ? 'Link creation is unavailable in this workspace. Complete the one-time setup below, then open an authorized admin session.' : !connection?.configured ? 'Configure the platform Stripe account first. The store owner can then complete their own setup through a private link.' : 'Share the setup link with the store owner. A newly created link replaces previous setup invitations.';
+    $('#setup-prerequisites').hidden = remote && connection?.configured;
   }
   $('#create-setup-link').addEventListener('click', async () => {
     const button = $('#create-setup-link');
