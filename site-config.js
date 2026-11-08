@@ -1,3 +1,3 @@
 // Public configuration only. Never put Stripe secret keys or admin passwords here.
-// Leave empty until the API in backend/ has been deployed.
-globalThis.nornailsConfig = Object.freeze({ apiUrl: '' });
+// The Edge Function holds the database connection; no privileged key is public.
+globalThis.nornailsConfig = Object.freeze({ apiUrl: 'https://clyshqnbxapwipacbaxd.supabase.co/functions/v1/nornails-api' });

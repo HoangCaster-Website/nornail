@@ -14,6 +14,7 @@
 .edit-button{white-space:nowrap}
 @media(max-width:700px){.catalog-controls .search-box input{font-size:16px;min-height:42px;height:42px}.catalog-filters select{max-width:156px}}
 @media(max-width:360px){.catalog-filters{flex-direction:column}.catalog-filters .search-box{width:100%}.catalog-filters select{max-width:none;width:100%}}
+@media(max-width:360px){.sidebar .nav-item{flex-direction:column;justify-content:center;gap:2px;padding:8px 4px;overflow-wrap:normal}.sidebar .nav-item>span:first-child{font-size:16px;width:auto}}
 
 /* Vietnamese/English controls and merchant self-service setup. */
 .admin-languages{display:flex;align-items:center;border:1px solid var(--line);border-radius:4px;overflow:hidden;flex:none}

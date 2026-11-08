@@ -19,7 +19,8 @@ export function createConnect({ json, fail, hash, hex, stripe, stripeMode, body,
     return url.href;
   }
   const redirect = (url, headers = {}) => new Response(null, { status: 303, headers: { Location: url, ...headers } });
-  const cookie = value => `nornails_connect=${value}; Path=/api/connect/callback; HttpOnly; Secure; SameSite=Lax; Max-Age=${value ? 600 : 0}`;
+  const callback = (env, request) => new URL((env.API_PATH_PREFIX || '') + '/api/connect/callback', request.url).href;
+  const cookie = (env, value) => `nornails_connect=${value}; Path=${env.API_PATH_PREFIX || ''}/api/connect/callback; HttpOnly; Secure; SameSite=Lax; Max-Age=${value ? 600 : 0}`;
   async function credential(env, value) {
     if (!/^[is]_[a-f0-9]{64}$/.test(value || '')) fail(401, 'This setup link is invalid or expired.');
     const digest = await hash(value);
@@ -48,7 +49,7 @@ export function createConnect({ json, fail, hash, hex, stripe, stripeMode, body,
   }
   async function adminState(env, request) {
     const current = await merchant(env);
-    return { enabled: enabled(env), configured: configured(env), status: current?.status || 'not_connected', accountId: current?.account_id || null, callbackUrl: new URL('/api/connect/callback', request.url).href, webhookConfigured: Boolean(env.STRIPE_CONNECT_WEBHOOK_SECRET) };
+    return { enabled: enabled(env), configured: configured(env), status: current?.status || 'not_connected', accountId: current?.account_id || null, callbackUrl: callback(env, request), webhookConfigured: Boolean(env.STRIPE_CONNECT_WEBHOOK_SECRET) };
   }
   async function adminRoute(request, env, path) {
     if (path === '/api/admin/connect/invites' && request.method === 'POST') {
@@ -110,9 +111,9 @@ export function createConnect({ json, fail, hash, hex, stripe, stripeMode, body,
       await env.DB.prepare('DELETE FROM connect_states WHERE expires <= ?').bind(now()).run();
       await env.DB.prepare('INSERT INTO connect_states (state_hash, invite_id, expires) VALUES (?, ?, ?)').bind(await hash(state), invite.id, now() + 600).run();
       const target = new URL('https://connect.stripe.com/oauth/authorize');
-      target.search = new URLSearchParams({ response_type: 'code', client_id: env.STRIPE_CONNECT_CLIENT_ID, scope: 'read_write', state, redirect_uri: new URL('/api/connect/callback', request.url).href }).toString();
+      target.search = new URLSearchParams({ response_type: 'code', client_id: env.STRIPE_CONNECT_CLIENT_ID, scope: 'read_write', state, redirect_uri: callback(env, request) }).toString();
       // Language is only presentation state; it never determines success.
-      return redirect(target.href, { 'Set-Cookie': cookie(state + '.' + language) });
+      return redirect(target.href, { 'Set-Cookie': cookie(env, state + '.' + language) });
     }
     if (path === '/api/connect/callback' && request.method === 'GET') {
       const query = new URL(request.url).searchParams;
@@ -143,7 +144,7 @@ export function createConnect({ json, fail, hash, hex, stripe, stripeMode, body,
       }
       await env.DB.prepare('UPDATE connect_invites SET status = ?, account_id = COALESCE(?, account_id) WHERE id = ?').bind(status, accountId, invite.id).run();
       const value = await sessionCredential(env, invite, accountId);
-      return redirect(portal(env, value, language), { 'Set-Cookie': cookie('') });
+      return redirect(portal(env, value, language), { 'Set-Cookie': cookie(env, '') });
     }
     fail(404, 'Not found.');
   }

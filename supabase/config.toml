@@ -1,0 +1,5 @@
+project_id = "clyshqnbxapwipacbaxd"
+
+[functions.nornails-api]
+# Public catalogue, Stripe webhooks and scoped store tokens authenticate in code.
+verify_jwt = false

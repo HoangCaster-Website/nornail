@@ -74,3 +74,13 @@ Bản cập nhật dùng nền trắng và taupe, ảnh manicure thật, chữ L
 - Local D1 migration 0004 and Worker dry-run build pass. Payment/Stripe services remain unconfigured in the public static site; no real payment was attempted and no demo invoice/price/QR is exposed as a genuine order.
 
 - Payment print-media check: test orders retain a visible test-mode label in printed order summaries, including when the QR panel is omitted from print.
+
+## Supabase connection — 2026-11-08
+
+- Connected the existing project `clyshqnbxapwipacbaxd`; added eleven `nornails_*` tables and deployed only the new `nornails-api` Edge Function. Eight confirmed products, no prices, no orders, no admin credentials. Checkout remains off.
+- Existing `notes` content checksum (three rows) and all five pre-existing public table column/RLS fingerprints matched before/after. Existing `notebyme-api` was not redeployed. No Supabase Auth configuration or identities were changed.
+- All 26 automated tests pass. All 42 store statements also ran against hosted PostgreSQL inside a rolled-back transaction, including optimistic edit conflicts and successful/failed atomic batches. No verification route remains deployed.
+- Live API: catalogue 200 with eight products and `storage: supabase`; private state 401; deferred admin login and disabled checkout 503. Publishable-key Data API reads of products/orders/admin credentials are denied. Server credentials never enter static files.
+- Security/performance advisors checked: new tables intentionally have RLS with no public policies or grants (server-only). Pre-existing Auth and `backend_sessions` advisories were left unchanged.
+- Browser QA with real Supabase: desktop/390/320px storefront and admin, VI/EN status, no login gate/account assignment, local price draft retained after reload, no unauthenticated write requests or change to the public price, no JS errors or document overflow. Small-screen admin navigation stacks icons above labels.
+- Admin account setup is deferred per the owner: public editing remains explicitly labelled as drafts. Product publication and real Stripe testing require their separate configuration later.

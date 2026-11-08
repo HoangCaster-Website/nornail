@@ -1,6 +1,8 @@
 # Nornails admin & Stripe
 
-The storefront and `admin.html` stay on **GitHub Pages**. The separate API uses a Cloudflare Worker and a D1 database. No customer account, Stripe account, API key, password or cloud resource has been created as part of this setup.
+The storefront and `admin.html` stay on **GitHub Pages**. The live backend now uses the existing Supabase project and the separate `nornails-api` Edge Function. See **[the current Supabase setup](../supabase/README.md)** for deployed tables, API URLs, permissions and secrets. Admin login is deferred; drafts do not publish. Stripe remains unconfigured.
+
+The Cloudflare/D1 deployment instructions below describe the earlier, unused alternative. They are not required for this connected store. For Supabase, use the `NORNAILS_STRIPE_*` secrets documented above rather than the generic Worker secret names below.
 
 ## What works before connecting a server
 
@@ -139,6 +141,6 @@ Set the emitted signing secret in local `.dev.vars`, restart the Worker, and use
 npm test
 ```
 
-The 23 integration tests use an in-memory SQLite D1 adapter, real Web Crypto signatures and mocked Stripe HTTP responses. They cover authentication, session expiry, rate limits, CORS, CRUD, concurrent edits, authoritative prices, disabled checkout, Stripe request encoding, signed webhook verification/idempotency and payment status. Real Stripe end-to-end testing and production deployment remain pending customer/cloud credentials.
+The 26 automated tests use an in-memory SQLite adapter, real Web Crypto signatures, PostgreSQL statement checks and mocked Stripe HTTP responses. They cover authentication, session expiry, rate limits, CORS, CRUD, concurrent edits, authoritative prices, disabled checkout, Stripe request encoding, signed webhook verification/idempotency and payment status. The Supabase deployment and real PostgreSQL rollback checks are documented in `supabase/README.md`. Real Stripe end-to-end testing still awaits merchant credentials.
 
 References: [Stripe Checkout Sessions](https://docs.stripe.com/api/checkout/sessions/create), [Stripe webhook signatures and retries](https://docs.stripe.com/events/manage-webhook-endpoints), [D1 prepared statements](https://developers.cloudflare.com/d1/worker-api/prepared-statements/), [Worker secrets](https://developers.cloudflare.com/workers/configuration/secrets/).

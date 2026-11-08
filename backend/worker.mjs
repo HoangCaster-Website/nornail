@@ -8,6 +8,7 @@ const STRIPE_VERSION = '2026-10-28.endive';
 const json = (data, status = 200) => new Response(JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json; charset=utf-8' } });
 class HttpError extends Error { constructor(status, message) { super(message); this.status = status; } }
 const fail = (status, message) => { throw new HttpError(status, message); };
+const requestPath = (request, env) => new URL(request.url).pathname.replace(env.API_PATH_PREFIX || /$^/, '').replace(env.FUNCTION_PATH || /$^/, '').replace(/\/$/, '');
 function validate(validator, input) {
   try { return validator(input); } catch (error) { fail(400, error.message); }
 }
@@ -76,7 +77,7 @@ async function ready(env) {
   return (await connect.merchant(env))?.status === 'success';
 }
 async function rateLimit(request, env, scope, maximum) {
-  const ip = request.headers.get('CF-Connecting-IP') || 'local';
+  const ip = request.headers.get('CF-Connecting-IP') || request.headers.get('X-Forwarded-For')?.split(',')[0].trim() || 'local';
   const now = Math.floor(Date.now() / 1000);
   const bucket = `${scope}:${await hash(ip)}:${Math.floor(now / 900)}`;
   await env.DB.prepare('DELETE FROM rate_limits WHERE expires < ?').bind(now).run();
@@ -91,15 +92,18 @@ async function authenticate(request, env) {
   return row.token_hash;
 }
 async function login(request, env) {
-  if (!env.ADMIN_EMAIL || !env.ADMIN_PASSWORD_HASH) fail(503, 'Admin credentials have not been configured on the server.');
+  // Hosted stores may keep their own isolated credentials in the database.
+  // No Supabase Auth identity or account from another app grants admin access.
+  const credentials = env.adminCredentials ? await env.adminCredentials() : { email: env.ADMIN_EMAIL, passwordHash: env.ADMIN_PASSWORD_HASH };
+  if (!credentials?.email || !credentials?.passwordHash) fail(503, 'Admin sign-in has not been set up yet.');
   await rateLimit(request, env, 'login', 5);
   const input = await body(request);
   if (typeof input.email !== 'string' || typeof input.password !== 'string' || input.password.length > 512) fail(401, 'Incorrect email or password.');
-  const [salt, expected] = env.ADMIN_PASSWORD_HASH.split(':');
+  const [salt, expected] = credentials.passwordHash.split(':');
   if (!/^[a-f0-9]{32}$/.test(salt) || !/^[a-f0-9]{64}$/.test(expected || '')) fail(503, 'Invalid server password configuration.');
   const key = await crypto.subtle.importKey('raw', encoder.encode(input.password), 'PBKDF2', false, ['deriveBits']);
   const actual = hex(await crypto.subtle.deriveBits({ name: 'PBKDF2', salt: Uint8Array.from(salt.match(/../g), part => parseInt(part, 16)), iterations: 100000, hash: 'SHA-256' }, key, 256));
-  if (!equal(actual, expected) || input.email.toLowerCase() !== env.ADMIN_EMAIL.toLowerCase()) fail(401, 'Incorrect email or password.');
+  if (!equal(actual, expected) || input.email.toLowerCase() !== credentials.email.toLowerCase()) fail(401, 'Incorrect email or password.');
   const token = hex(crypto.getRandomValues(new Uint8Array(32)));
   const now = Math.floor(Date.now() / 1000);
   await env.DB.batch([
@@ -241,7 +245,7 @@ async function webhook(request, env) {
 }
 async function route(request, env) {
   const url = new URL(request.url);
-  const path = url.pathname.replace(/\/$/, '');
+  const path = requestPath(request, env);
   if (!env.DB) fail(503, 'Database is not configured.');
   const connectResponse = await connect.publicRoute(request, env, path);
   if (connectResponse) return connectResponse;
@@ -249,7 +253,7 @@ async function route(request, env) {
   if (path === '/api/catalog' && request.method === 'GET') {
     const result = await env.DB.prepare('SELECT data, version FROM products ORDER BY position, id').all();
     const config = await settings(env);
-    return json({ products: result.results.map(decodeProduct).filter(product => product.active), checkout: { enabled: config.enabled && await ready(env), mode: stripeMode(env), pickupEnabled: config.pickupEnabled, shippingEnabled: config.shippingEnabled && config.shippingOre !== null, shippingOre: config.shippingOre, currency: 'NOK' } });
+    return json({ products: result.results.map(decodeProduct).filter(product => product.active), storage: env.STORAGE_NAME || 'database', adminConfigured: env.adminCredentials ? Boolean(await env.adminCredentials()) : Boolean(env.ADMIN_EMAIL && env.ADMIN_PASSWORD_HASH), checkout: { enabled: config.enabled && await ready(env), mode: stripeMode(env), pickupEnabled: config.pickupEnabled, shippingEnabled: config.shippingEnabled && config.shippingOre !== null, shippingOre: config.shippingOre, currency: 'NOK' } });
   }
   if (path === '/api/checkout' && request.method === 'POST') return checkout(request, env);
   if (['/api/checkout/status', '/api/checkout/invoice'].includes(path) && request.method === 'GET') {
@@ -286,7 +290,7 @@ async function route(request, env) {
   if (path === '/api/admin/state' && request.method === 'GET') {
     const result = await env.DB.prepare('SELECT data, version FROM products ORDER BY position, id').all();
     const orders = await env.DB.prepare('SELECT id, mode, status, amount, currency, items, email, created_at, fulfillment, shipping_ore, delivery_details FROM orders ORDER BY created_at DESC LIMIT 100').all();
-    return json({ products: result.results.map(decodeProduct), settings: await settings(env), stripe: { mode: stripeMode(env), secretConfigured: stripeMode(env) !== 'unconfigured', webhookConfigured: Boolean(connect.enabled(env) ? env.STRIPE_CONNECT_WEBHOOK_SECRET : env.STRIPE_WEBHOOK_SECRET), ready: await ready(env), connect: await connect.adminState(env, request), webhookUrl: new URL('/api/stripe/webhook', request.url).href }, orders: orders.results.map(order => ({ ...order, items: JSON.parse(order.items) })) });
+    return json({ products: result.results.map(decodeProduct), settings: await settings(env), stripe: { mode: stripeMode(env), secretConfigured: stripeMode(env) !== 'unconfigured', webhookConfigured: Boolean(connect.enabled(env) ? env.STRIPE_CONNECT_WEBHOOK_SECRET : env.STRIPE_WEBHOOK_SECRET), ready: await ready(env), connect: await connect.adminState(env, request), webhookUrl: new URL((env.API_PATH_PREFIX || '') + '/api/stripe/webhook', request.url).href }, orders: orders.results.map(order => ({ ...order, items: JSON.parse(order.items) })) });
   }
   if (path === '/api/admin/products' && request.method === 'POST') {
     const product = validate(rules.product, await body(request));
@@ -337,7 +341,7 @@ export default {
       catch (error) {
         const message = error instanceof HttpError ? error.message : 'Request could not be completed. Please try again.';
         const status = error instanceof HttpError ? error.status : 500;
-        if (/^\/api\/connect\/(start|onboard|callback)$/.test(new URL(request.url).pathname) && request.headers.get('Accept')?.includes('text/html')) {
+        if (/^\/api\/connect\/(start|onboard|callback)$/.test(requestPath(request, env)) && request.headers.get('Accept')?.includes('text/html')) {
           const escape = value => String(value).replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' })[c]);
           const back = /^https:\/\//.test(env.STOREFRONT_URL || '') ? env.STOREFRONT_URL : '#';
           response = new Response(`<!doctype html><html lang="vi"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="referrer" content="no-referrer"><title>Nornails — Setup not completed</title><style>body{margin:0;background:#fffdf8;color:#391020;font:16px/1.8 system-ui;padding:60px 24px}main{max-width:560px;margin:10vh auto}h1{font:38px/1.2 Georgia}p{color:#775e66}a{color:#651b32}small{display:block;margin-top:30px}</style><main><small>NORNAILS · STRIPE</small><h1>Chưa hoàn tất thiết lập</h1><p>Setup could not be completed. Reopen the original setup link in the same browser, or contact the website administrator.</p><p>${escape(message)}</p><a href="${escape(back)}">Về website / Back to store →</a></main></html>`, { status, headers: { 'Content-Type': 'text/html; charset=utf-8' } });

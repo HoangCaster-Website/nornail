@@ -7,3 +7,6 @@
 node_modules/
 .wrangler/
 test-results/
+supabase/.temp/
+supabase/functions/nornails-api/backend/
+supabase/functions/nornails-api/commerce.js

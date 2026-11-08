@@ -15,6 +15,8 @@
   let orders = [];
   let visibility = 'all';
   let remote = false;
+  let databaseConnected = false;
+  let adminConfigured = false;
   let token = '';
   let apiUrl = '';
   let editing = null;
@@ -80,13 +82,14 @@
     $('#stat-payment').textContent = remote && stripe.ready ? checkoutSettings.enabled ? `${stripe.mode === 'test' ? 'Test' : 'Live'} checkout` : 'Checkout off' : 'Not connected';
   }
   function renderMode() {
-    $('#connection-pill').textContent = remote ? 'Store connected' : 'Local draft';
-    $('#connection-pill').classList.toggle('connected', remote);
-    $('#connect-open').hidden = remote;
+    $('#connection-pill').textContent = remote ? 'Store connected' : databaseConnected ? 'Database connected' : 'Local draft';
+    $('#connection-pill').classList.toggle('connected', remote || databaseConnected);
+    $('#connect-open').hidden = remote || (Boolean(globalThis.nornailsConfig.apiUrl) && !adminConfigured);
     $('#logout').hidden = !remote;
     $('#save-note').textContent = remote ? 'Changes publish to the connected store' : 'Drafts stay in this browser';
     $('#footer-mode').textContent = remote ? 'Connected store workspace' : 'Local preparation workspace';
     $('#mode-notice').innerHTML = remote ? '<span class="notice-dot" aria-hidden="true"></span><p><strong>Store connected.</strong> Saved products and prices update the public catalogue. Checkout remains controlled by your payment settings.</p><button class="text-button" id="reload-state">Refresh catalogue →</button>' : '<span class="notice-dot" aria-hidden="true"></span><p><strong>Prepare your store.</strong> Changes are saved as drafts in this browser. Connect the store API to publish products and prices to the website.</p><button class="text-button" data-page="setup">Setup guide →</button>';
+    if (!remote && databaseConnected && !adminConfigured) $('#mode-notice').innerHTML = '<span class="notice-dot" aria-hidden="true"></span><p><strong>Database connected.</strong> The storefront reads products from Supabase. Admin sign-in is deferred; edits here remain local drafts.</p><button class="text-button" data-page="setup">Setup guide →</button>';
     $('#import-open').disabled = remote;
     $('#import-open').title = remote ? 'Catalogue imports are for local drafts. Use the product editor to update a connected store.' : '';
   }
@@ -332,8 +335,8 @@
     try {
       const fields = $('#connect-form').elements;
       const url = new URL(fields.apiUrl.value);
-      if ((url.protocol !== 'https:' && !(url.protocol === 'http:' && ['localhost', '127.0.0.1'].includes(url.hostname))) || url.username || url.password || url.search || url.hash || url.pathname !== '/') throw new Error('Use an HTTPS API origin, without a path. Localhost HTTP is allowed for development.');
-      base = url.origin;
+      if ((url.protocol !== 'https:' && !(url.protocol === 'http:' && ['localhost', '127.0.0.1'].includes(url.hostname))) || url.username || url.password || url.search || url.hash || !/^\/(?:functions\/v1\/[a-z0-9-]+\/?)?$/.test(url.pathname)) throw new Error('Use an HTTPS API URL. A Supabase function path is allowed.');
+      base = url.href.replace(/\/$/, '');
       const session = await request('/api/admin/login', { method: 'POST', body: JSON.stringify({ email: fields.email.value.trim(), password: fields.password.value }) }, base, '');
       newToken = session.token;
       const state = await request('/api/admin/state', {}, base, newToken);
@@ -416,6 +419,23 @@
     finally { event.target.value = ''; }
   });
   window.addEventListener('beforeunload', event => { if ($('#product-editor').open && editorSnapshot !== editorValues()) event.preventDefault(); });
+  async function checkDatabase() {
+    const base = globalThis.nornailsConfig.apiUrl?.replace(/\/$/, '');
+    if (!base) return;
+    try {
+      const catalogue = await request('/api/catalog', { cache: 'no-store' }, base, '');
+      databaseConnected = catalogue.storage === 'supabase';
+      adminConfigured = catalogue.adminConfigured === true;
+      let hasDraft = true;
+      try { hasDraft = Boolean(localStorage.getItem(draftKey)); } catch { /* Preserve current data if storage cannot be checked. */ }
+      if (!hasDraft) products = validateCatalogue(catalogue.products);
+      renderAll();
+    } catch {
+      $('#connection-pill').textContent = 'Database unavailable';
+      notify('Could not load the database. Local drafts are still available.');
+    }
+  }
   renderAll();
   switchPage(location.hash.slice(1) || 'products');
+  checkDatabase();
 })();
